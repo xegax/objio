@@ -1,13 +1,14 @@
 {
   "compilerOptions": {
-    "module": "umd",
+    "module": "amd",
     "target": "es5",
+    "moduleResolution": "node",
     "noImplicitAny": false,
     "sourceMap": true,
+    "baseUrl": "./src",
     "jsx": "react"
   },
   "include": [
-    "./src/**/*",
-    "node_modules/axios/index.d.ts"
+    "./src/**/*"
   ]
 }

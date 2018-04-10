@@ -1,15 +1,18 @@
-var path = require('path');
+const path = require('path');
+const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 
 var entry = {
-  'docs': './src/apps/docs/app.tsx'
+  'objio': './src/entry/objio-lib.ts'
 };
 
 module.exports = {
   entry: entry,
   output: {
-    path: path.resolve('./build'),
-    filename: '[name].bundle.js',
-    library: '[name]'
+    path: path.resolve('.'),
+    filename: 'index.js',
+    library: '[name]',
+    libraryTarget: 'umd',
+    umdNamedDefine: true
   },
   resolve: {
     extensions: [".ts", ".tsx", ".js"],
@@ -19,14 +22,19 @@ module.exports = {
     ]
   },
   externals: {
+    'objio': './objio'
   },
   module: {
     loaders: [
       {
         test: /\.tsx?$/,
-        loader: "awesome-typescript-loader"
+        loader: "awesome-typescript-loader",
+        exclude: /node_modules/,
       }
     ]
   },
+  plugins: [
+    new UglifyJsPlugin()
+  ],
   devtool: 'source-map'
 }

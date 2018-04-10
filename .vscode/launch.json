@@ -23,24 +23,6 @@
       ],
       "program": "${workspaceRoot}/node_modules/jasmine/bin/jasmine.js",
       "cwd": "${workspaceRoot}"
-    },
-    {
-      "type": "node",
-      "request": "launch",
-      "name": "test-node-entry",
-      "program": "${workspaceRoot}/src/entry/test-node-entry.js",
-      "outFiles": [],
-      "env": {
-        "NODE_PATH": "${workspaceRoot}\\src"
-      }
-    },
-    {
-      "type": "node",
-      "request": "attach",
-      "name": "Подключиться к процессу",
-      "address": "localhost",
-      "port": 5858,
-      "outFiles": []
     }
   ]
 }

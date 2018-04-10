@@ -1,16 +1,12 @@
 {
   "compilerOptions": {
     "module": "umd",
-    "target": "es3",
+    "target": "es5",
     "noImplicitAny": false,
     "sourceMap": true,
     "jsx": "react"
   },
-  "files": ["node_modules/axios/index.d.ts"],
   "exclude": [
-    "node_modules",
-    "styles",
-    "html",
-    "build"
+    "node_modules"
   ]
 }

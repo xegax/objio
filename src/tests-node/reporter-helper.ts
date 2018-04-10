@@ -1,5 +1,3 @@
-declare function require(s: string): any;
-
 const jr = require('jasmine-spec-reporter');
 
 let env = jasmine.getEnv();
