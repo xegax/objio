@@ -23,10 +23,13 @@ declare module 'objio' {
     version: string;
   }
 
+  type CreateObjectsArgs = Array<{classId: string, json: Object}>;
+  type WriteObjectsArgs = Array<{id: string, json: Object, version: string}>;
+
   class OBJIOStore {
-    createObjects(arr: Array<{classId: string, json: Object}>): Promise<Array<CreateResult>>;
-    writeObjects(arr: Array<{id: string, json: Object}>): Promise<WriteResult>;
-    
+    createObjects(args: CreateObjectsArgs): Promise<Array<CreateResult>>;
+    writeObjects(args: WriteObjectsArgs): Promise<WriteResult>;
+
     // read all objects tree
     readObjects(id: string): Promise<ReadResult>;
     
