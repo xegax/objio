@@ -3,9 +3,7 @@ import {
   OBJIOItemClass,
   OBJIOFactory,
   OBJIOStore,
-  OBJIOLocalStore,
   Observer,
-  WriteResult,
   CreateResult
 } from 'objio';
 import * as objio from 'objio';
@@ -13,6 +11,7 @@ import {OBJIOFactoryImpl} from './factory';
 import {OBJIOStoreBase} from './objio-store';
 import {OBJIOItem, OBJIOItemHolderImpl, findAllObjFields} from './objio-item';
 import {Timer} from '../common/timer';
+import { SerialPromise } from '../common/serial-promise';
 
 interface OBJItemConstructor extends ObjectConstructor {
   new(): OBJIOItem;
@@ -38,7 +37,7 @@ class SavingQueue {
 
     if (this.timeToSave == 0)
       return this.saveImpl();
-    
+
     if (this.savePromise)
       return this.savePromise;
 
@@ -109,7 +108,7 @@ export class OBJIOImpl implements OBJIO {
     this.observers.forEach(item => {
       try {
         item.onSave && item.onSave();
-      } catch(e) {
+      } catch (e) {
         console.log(e);
       }
     });
@@ -141,7 +140,6 @@ export class OBJIOImpl implements OBJIO {
     } else {
       obj = objOrClass;
     }
-    
 
     const objs = findAllObjFields(obj, [obj]);
 
@@ -166,9 +164,9 @@ export class OBJIOImpl implements OBJIO {
       let objClass = this.factory.findItem(store.classId);
       let newObj: OBJIOItem;
 
-      if (this.objectMap[objId])
+      if (this.objectMap[objId]) {
         newObj = this.objectMap[objId];
-      else {
+      } else {
         newObj = new (objClass as any as OBJItemConstructor)();
         this.initNewObject(newObj as OBJIOItem, objId, store.version);
       }
@@ -176,36 +174,29 @@ export class OBJIOImpl implements OBJIO {
       const holder = newObj.getHolder() as OBJIOItemHolderImpl;
       holder.setJSON(store.json, store.version);
 
-     //let fields = objClass.SERIALIZE();
-      //if (objClass.loadStore) {
-        objClass.loadStore({
-          obj: newObj,
-          store: store.json as any,
-          getObject: loadObjectImpl
-        });
-      /*} else {
-        Object.keys(store.json).forEach(name => {
-          if (fields[name].type == 'object')
-            newObj[name] = loadObjectImpl(store.json[name]);
-        });
-      }*/
+      objClass.loadStore({
+        obj: newObj,
+        store: store.json as any,
+        getObject: loadObjectImpl
+      });
 
       return newObj;
-    }
+    };
 
     return loadObjectImpl(id) as T;
   }
 
-  async updateObjects(objs: Array<{id: string, version: string}>): Promise<Array<OBJIOItem>> {
-    const writes = this.store.getWrites();
-    if (!writes.length)
-      return this.updateObjectsImpl(objs);
+  private updateTasks = new SerialPromise();
 
-    const updateImpl = () => this.updateObjectsImpl(objs);
-    return Promise.all(this.store.getWrites()).then(updateImpl).catch(updateImpl);
+  updateObjects(objs: Array<{id: string, version: string}>): Promise<Array<OBJIOItem>> {
+    const writes = this.store.getWrites();
+    if (writes.length)
+      this.updateTasks.append(() => Promise.all(writes));
+
+    return this.updateTasks.append(() => this.updateObjectsImpl(objs));
   }
 
-  async updateObjectsImpl(objs: Array<{id: string, version: string}>): Promise<Array<OBJIOItem>> {
+  private async updateObjectsImpl(objs: Array<{id: string, version: string}>): Promise<Array<OBJIOItem>> {
     objs = objs.filter(item => {
       const obj = this.objectMap[item.id];
       return obj == null || obj.getHolder().getVersion() != item.version;
@@ -225,7 +216,6 @@ export class OBJIOImpl implements OBJIO {
       if (extraObjs.length)
         await Promise.all(extraObjs.map(id => this.loadObject(id)));
 
-      const fields = objClass.SERIALIZE();
       (obj.getHolder() as OBJIOItemHolderImpl).setJSON(json, version);
       return { id: item.id, json };
     };

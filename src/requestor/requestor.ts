@@ -162,7 +162,7 @@ class RequestorImpl extends Requestor {
     return new Promise<string>((resolve, reject) => {
       url = getUrl(url, params);
       let req = d3.text(url);
-      
+
       let header = this.getHeaders(getParams(params).join('&'), '');
       Object.keys(header).forEach(k => {
         req.header(k, header[k]);
