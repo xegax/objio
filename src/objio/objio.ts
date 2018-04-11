@@ -202,6 +202,8 @@ export class OBJIOImpl implements OBJIO {
       return obj == null || obj.getHolder().getVersion() != item.version;
     });
 
+    console.log('updateObjects', objs);
+
     const updateObject = async (item: {id: string, version: string}) => {
       const obj = this.objectMap[item.id];
       if (!obj) {

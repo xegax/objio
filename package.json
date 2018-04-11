@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "",
   "main": "index.js",
-  "repository": "git@github.com:xegax/tsTemplate.git",
+  "repository": "git@github.com:xegax/objio.git",
   "scripts": {
     "dist": "node_modules/.bin/webpack",
     "tsc": "tsc -m umd",

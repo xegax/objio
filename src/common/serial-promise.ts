@@ -14,7 +14,7 @@ export class SerialPromise {
 
     return this.task = new Promise(async resolve => {
       while (this.arr.length) {
-        await this.arr.splice(0, 1)[0];
+        await this.arr.splice(0, 1)[0]();
       }
       this.task = null;
       resolve();
