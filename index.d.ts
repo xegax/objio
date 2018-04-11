@@ -53,6 +53,14 @@ declare module 'objio' {
     setObjectData(id: string, data: Object);
   }
 
+  interface Requestor {
+    sendJSON<T>(url: string, params?: Object, postData?: Object): Promise<T>;
+  }
+
+  class OBJIORemoteStore extends OBJIOStore {
+    constructor(requestor: Requestor, root?: string);
+  }
+
   interface Observer {
     onSave?: () => void;
   }
