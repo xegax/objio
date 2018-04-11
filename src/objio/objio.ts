@@ -63,13 +63,16 @@ class SavingQueue {
     console.log('saving started', queue.length);
     const objs = await this.store.writeObjects(queue.map(item => {
       const holder = item.getHolder();
-      return {id: holder.getID(), json: holder.getJSON()};
+      return {
+        id: holder.getID(),
+        json: holder.getJSON(),
+        version: holder.getVersion()
+      };
     }));
 
     objs.items.forEach((obj: CreateResult, i: number) => {
       const holder = queue[i].getHolder() as OBJIOItemHolderImpl;
       holder.updateVersion(obj.version);
-      // holder.setJSON(obj.json, obj.version);
     });
 
     this.objio.notifyOnSave();

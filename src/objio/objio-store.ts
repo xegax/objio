@@ -1,14 +1,14 @@
 import {
   OBJIOFactory,
   OBJIOStore,
-  OBJIOItemClass,
   OBJIOLocalStore,
   WriteResult,
   CreateResult,
-  ReadResult
+  ReadResult,
+  WriteObjectsArgs,
+  CreateObjectsArgs
 } from 'objio';
-import {cloneDeep} from 'lodash';
-import { OBJIOArray } from './objio-array';
+import { cloneDeep } from 'lodash';
 
 export function nextVersion(ver: string) {
   let newVer = '';
@@ -36,12 +36,12 @@ export class OBJIOStoreBase implements OBJIOStore {
     return promise;
   }
 
-  createObjects(arr: Array<{classId: string, json: Object}>): Promise<Array<CreateResult>> {
-    return this.pushWrite(this.storeImpl.createObjects(arr));
+  createObjects(args: CreateObjectsArgs): Promise<Array<CreateResult>> {
+    return this.pushWrite(this.storeImpl.createObjects(args));
   }
 
-  writeObjects(arr: Array<{id: string, json: Object}>): Promise<WriteResult> {
-    return this.pushWrite(this.storeImpl.writeObjects(arr));
+  writeObjects(args: WriteObjectsArgs): Promise<WriteResult> {
+    return this.pushWrite(this.storeImpl.writeObjects(args));
   }
 
   readObject(id: string): Promise<ReadResult> {
@@ -59,7 +59,7 @@ export class OBJIOStoreBase implements OBJIOStore {
   getWrites() {
     return this.writes;
   }
-} 
+}
 
 interface ObjStore {
   data: Object;
@@ -77,60 +77,41 @@ interface StoreState {
 }
 
 export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
-  private _idCounter: number = 0;
+  private idCounter: number = 0;
   private objects: {[id: string]: ObjStore} = {};
   private factory: OBJIOFactory;
-  private lastChanged = Array<string>();
-  private lastChangedVersion = 0;
 
   constructor(factory: OBJIOFactory) {
     this.factory = factory;
   }
 
-  private markAsChanged(id: string) {
-    let i = this.lastChanged.indexOf(id);
-    if (i != -1)
-      this.lastChanged.splice(i, 1);
-
-    this.lastChanged.push(id);
-    this.lastChangedVersion++;
-  }
-
-  getLastChanged() {
-    return this.lastChanged.slice();
-  }
-
-  getLastChangedVersion() {
-    return this.lastChangedVersion;
-  }
-
   loadAll(obj: StoreData) {
-    this._idCounter = obj.idCounter;
+    this.idCounter = obj.idCounter;
     this.objects = cloneDeep<{}>(obj.objects);
   }
 
   saveAll(clone: boolean): StoreData {
     return {
-      idCounter: this._idCounter,
+      idCounter: this.idCounter,
       objects: clone ? cloneDeep(this.objects) : this.objects
     };
   }
 
   saveStoreState(): StoreState {
     return {
-      idCounter: this._idCounter
+      idCounter: this.idCounter
     };
   }
 
   loadStoreState(obj: StoreState) {
-    this._idCounter = obj.idCounter;
+    this.idCounter = obj.idCounter;
   }
 
-  createObjects(arr: Array<{classId: string, json: Object}>): Promise<Array<CreateResult>> {
+  createObjects(arr: CreateObjectsArgs): Promise<Array<CreateResult>> {
     let res = Array<CreateResult>();
 
     const createObjectImpl = (classId: string, json?: Object) => {
-      const newId = '' + this._idCounter++;
+      const newId = '' + this.idCounter++;
       const storeItem = this.objects[newId] = {
         data: json || {},
         classId,
@@ -145,8 +126,9 @@ export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
     return Promise.resolve(res);
   }
 
-  writeObjects(arr: Array<{id: string, json: Object}>): Promise<WriteResult> {
+  writeObjects(arr: WriteObjectsArgs): Promise<WriteResult> {
     const removed = Array<string>();
+
     // запоминаем id объектов
     const getIDS = () => {
       const ids: {[id: string]: number} = {};
@@ -166,31 +148,15 @@ export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
             ids[id] = (ids[id] || 0) + 1;
          });
         });
-      } catch(e) {
+      } catch (e) {
         console.log(e);
       }
       return ids;
     };
-    let firstCheckIds = getIDS();
 
-    // TODO: добавить проверку полей по typeId
-    const res = arr.map(item => {
-      this.markAsChanged(item.id);
-      const currData = this.objects[item.id];
-      let newData = {...currData.data, ...item.json};
-      let upd = 0;
-      Object.keys(newData).forEach(key => {
-        if (currData.data[key] == newData[key])
-          return;
-        
-        upd++;
-        currData.data[key] = newData[key];
-      });
+    const firstCheckIds = getIDS();
 
-      if (upd)
-        currData.version = nextVersion(currData.version);
-      return {version: currData.version, json: newData, id: item.id};
-    });
+    const items = this.writeObjectsImpl(arr);
 
     const secondCheckIds = getIDS();
 
@@ -201,7 +167,7 @@ export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
     });
 
     if (Object.keys(removedIds).length == 0)
-      return Promise.resolve({items: res, removed: []});
+      return Promise.resolve({items, removed: []});
 
     Object.keys(this.objects).forEach(id => {
       const {classId, data} = this.objects[id];
@@ -219,7 +185,36 @@ export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
       }
     });
 
-    return Promise.resolve({items: res, removed});
+    return Promise.resolve({items, removed});
+  }
+
+  private writeObjectsImpl(arr: WriteObjectsArgs) {
+    // TODO: добавить проверку полей по typeId
+    return arr.map(item => {
+      const currData = this.objects[item.id];
+      const newData = {...currData.data, ...item.json};
+
+      let upd = 0;
+      Object.keys(newData).forEach(key => {
+        if (currData.data[key] == newData[key])
+          return;
+
+        if (item.version != currData.version)
+          return console.log('concurrent modifying');
+
+        upd++;
+        currData.data[key] = newData[key];
+      });
+
+      if (upd)
+        currData.version = nextVersion(currData.version);
+
+      return {
+        version: currData.version,
+        json: newData,
+        id: item.id
+      };
+    });
   }
 
   private readObjectResult(id: string, res: ReadResult, deep: boolean) {
