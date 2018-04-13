@@ -65,6 +65,12 @@ declare module 'objio' {
     onSave?: () => void;
   }
 
+  interface WatchResult {
+    subscribe(f: (arr: Array<OBJIOItem>) => void);
+    unsubscribe(f: () => void);
+    stop();
+  }
+
   interface OBJIO {
     createObject<T extends OBJIOItem>(objOrClass: OBJIOItem | string): Promise<T>;
     loadObject<T extends OBJIOItem>(id: string): Promise<T>;
@@ -73,6 +79,8 @@ declare module 'objio' {
     getFactory(): OBJIOFactory;
     addObserver(obj: Observer);
     getWrites(): Array<Promise<any>>;
+
+    startWatch(req: Requestor, timeOut: number, baseUrl?: string): WatchResult;
   }
 
   class OBJIOItem {
@@ -86,7 +94,7 @@ declare module 'objio' {
     push(item: T);
   }
 
-  interface OBJIOItemHolder {
+  interface OBJIOItemHolder extends Publisher {
     getID(): string;
     save(): Promise<any>;
     getJSON(): Object;
@@ -105,6 +113,14 @@ declare module 'objio' {
     registerItem(itemClass: OBJIOItemClass);
     findItem(objType: string): OBJIOItemClass;
   }
+
+  class Publisher {
+    subscribe(o: () => void);
+    unsubscribe(o: () => void);
+  
+    notify();
+  }
+  
 
   function createLocalStore(factory: OBJIOFactory): Promise<OBJIOLocalStore>;
 

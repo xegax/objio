@@ -4,7 +4,9 @@ import {createLocalStore, OBJIOLocalStoreImpl} from 'objio/objio-store';
 import {OBJIOArray} from 'objio/objio-array';
 import {OBJIOItem} from 'objio/objio-item';
 import {OBJIORemoteStore} from 'objio/objio-remote-store';
+import {Publisher} from 'common/publisher';
 export {
+  Publisher,
   createOBJIO,
   createFactory,
   createLocalStore,

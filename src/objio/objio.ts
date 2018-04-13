@@ -4,14 +4,17 @@ import {
   OBJIOFactory,
   OBJIOStore,
   Observer,
-  CreateResult
+  CreateResult,
+  WatchResult
 } from 'objio';
 import * as objio from 'objio';
-import {OBJIOFactoryImpl} from './factory';
-import {OBJIOStoreBase} from './objio-store';
-import {OBJIOItem, OBJIOItemHolderImpl, findAllObjFields} from './objio-item';
-import {Timer} from '../common/timer';
+import { OBJIOFactoryImpl } from './factory';
+import { OBJIOStoreBase } from './objio-store';
+import { OBJIOItem, OBJIOItemHolderImpl, findAllObjFields } from './objio-item';
+import { Timer } from '../common/timer';
 import { SerialPromise } from '../common/serial-promise';
+import { Requestor } from '../requestor/requestor';
+import { OBJIOArray } from './objio-array';
 
 interface OBJItemConstructor extends ObjectConstructor {
   new(): OBJIOItem;
@@ -219,6 +222,7 @@ export class OBJIOImpl implements OBJIO {
         await Promise.all(extraObjs.map(id => this.loadObject(id)));
 
       (obj.getHolder() as OBJIOItemHolderImpl).setJSON(json, version);
+      obj.getHolder().notify();
       return { id: item.id, json };
     };
 
@@ -238,6 +242,57 @@ export class OBJIOImpl implements OBJIO {
     });
 
     return objs.map(item => this.objectMap[item.id]);
+  }
+
+  startWatch(req: Requestor, timeOut: number, baseUrl?: string): WatchResult {
+    baseUrl = baseUrl || 'objio/watcher/';
+  
+    let prev = { version: -1 };
+    let run = true;
+    let subscribers = Array<(arr: Array<OBJIOItem>) => void>();
+  
+    const loop = async () => {
+      if (!run)
+        return;
+
+      let w: { version: number };
+      try {
+        w = await req.sendJSON<{version: number}>(`${baseUrl}version`, {}, prev);
+      } catch (e) {
+        return setTimeout(loop, timeOut);
+      }
+  
+      if (prev && w.version == prev.version)
+        return setTimeout(loop, timeOut);
+  
+      await this.getWrites();
+  
+      prev = w;
+      const items = await req.getJSON<Array<{id: string, version: string}>>(`${baseUrl}items`);
+      const res = await this.updateObjects(items);
+      
+      subscribers.forEach(s => {
+        try {
+          s(res);
+        } catch (e) {
+          console.log(e);
+        }
+      });
+
+      setTimeout(loop, timeOut);
+    }
+
+    loop();
+
+    return {
+      stop: () => run = false,
+      subscribe: (f: (arr: Array<OBJIOArray>) => void) => {
+        subscribers.indexOf(f) == -1 && subscribers.push(f);
+      },
+      unsubscribe: f => {
+        subscribers.splice(subscribers.indexOf(f), 1);
+      }
+    };
   }
 }
 

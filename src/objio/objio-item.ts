@@ -1,4 +1,5 @@
 import * as objio from 'objio';
+import {Publisher} from 'common/publisher';
 
 interface InitArgs {
   id: string;
@@ -7,13 +8,14 @@ interface InitArgs {
   saveImpl: (obj: objio.OBJIOItem) => Promise<any>;
 }
 
-export class OBJIOItemHolderImpl implements objio.OBJIOItemHolder {
+export class OBJIOItemHolderImpl extends Publisher implements objio.OBJIOItemHolder  {
   private id: string;
   private obj: objio.OBJIOItem;
   private saveImpl: (obj: objio.OBJIOItem) => Promise<any>;
   private srvVersion: string = '';
 
   constructor(args?: InitArgs) {
+    super();
     if (!args)
       return;
 
