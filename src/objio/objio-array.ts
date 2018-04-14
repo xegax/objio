@@ -18,6 +18,18 @@ export class OBJIOArray<T = objio.OBJIOItem> extends OBJIOItem implements objio.
 
   push(item: T) {
     this.arr.push(item);
+    return this.holder;
+  }
+
+  insert(item: T, n: number) {
+    this.arr.splice(n, 0, item);
+    return this.holder;
+  }
+
+  find(f: ((v: T) => boolean) | T): number {
+    if (!(f instanceof Function))
+      return this.arr.findIndex(v => v == f);
+    return this.arr.findIndex(f as (v: T) => boolean);
   }
 
   static TYPE_ID = 'OBJIOArray';
