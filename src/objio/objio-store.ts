@@ -36,7 +36,7 @@ export class OBJIOStoreBase implements OBJIOStore {
     return promise;
   }
 
-  createObjects(args: CreateObjectsArgs): Promise<Array<CreateResult>> {
+  createObjects(args: CreateObjectsArgs): Promise<CreateResult> {
     return this.pushWrite(this.storeImpl.createObjects(args));
   }
 
@@ -107,22 +107,36 @@ export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
     this.idCounter = obj.idCounter;
   }
 
-  createObjects(arr: CreateObjectsArgs): Promise<Array<CreateResult>> {
-    let res = Array<CreateResult>();
+  createObjects(objMap: CreateObjectsArgs): Promise<CreateResult> {
+    const res: CreateResult = {};
 
-    const createObjectImpl = (classId: string, json?: Object) => {
+    Object.keys(objMap).forEach(id => {
+      const obj = objMap[id];
+
       const newId = '' + this.idCounter++;
       const storeItem = this.objects[newId] = {
-        data: json || {},
-        classId,
+        data: obj.json || {},
+        classId: obj.classId,
         version: nextVersion('')
       };
-      res.push({id: newId, json: storeItem.data, version: storeItem.version});
-    };
 
-    arr.forEach(obj => {
-      createObjectImpl(obj.classId, obj.json);
+      res[id] = {
+        newId: newId,
+        json: storeItem.data,
+        version: storeItem.version
+      };
     });
+
+    Object.keys(objMap).forEach(id => {
+      const { newId, json } = res[id];
+      const objClass = this.factory.findItem(this.objects[newId].classId);
+      const fields = objClass.SERIALIZE();
+      Object.keys(fields).forEach(name => {
+        if (fields[name].type == 'object')
+          json[name] = res[ json[name] ].newId;
+      });
+    });
+
     return Promise.resolve(res);
   }
 

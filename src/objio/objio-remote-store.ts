@@ -1,4 +1,4 @@
-import { OBJIOStore, WriteResult, CreateResult, Requestor } from 'objio';
+import { OBJIOStore, WriteResult, CreateObjectsArgs, CreateResult, Requestor } from 'objio';
 
 export class OBJIORemoteStore implements OBJIOStore {
   private req: Requestor;
@@ -9,7 +9,7 @@ export class OBJIORemoteStore implements OBJIOStore {
     this.root = root || this.root;
   }
 
-  createObjects(arr: Array<{classId: string, json: Object}>): Promise<Array<CreateResult>> {
+  createObjects(arr: CreateObjectsArgs): Promise<CreateResult> {
     return this.req.sendJSON(`${this.root}create-object`, {}, arr);
   }
 

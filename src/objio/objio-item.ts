@@ -86,8 +86,14 @@ export class OBJIOItemHolderImpl extends Publisher implements objio.OBJIOItemHol
   }
 }
 
+let localIdCounter = 0;
 export class OBJIOItem implements objio.OBJIOItem {
-  holder: objio.OBJIOItemHolder = new OBJIOItemHolderImpl({id: null, obj: this, saveImpl: null, version: ''});
+  holder: objio.OBJIOItemHolder = new OBJIOItemHolderImpl({
+    id: 'loc-' + (localIdCounter++),
+    obj: this,
+    saveImpl: null,
+    version: ''
+  });
 
   getHolder(): objio.OBJIOItemHolder {
     return this.holder;

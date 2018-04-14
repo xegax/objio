@@ -72,7 +72,7 @@ class SavingQueue {
       };
     }));
 
-    objs.items.forEach((obj: CreateResult, i: number) => {
+    objs.items.forEach((obj, i: number) => {
       const holder = queue[i].getHolder() as OBJIOItemHolderImpl;
       holder.updateVersion(obj.version);
     });
@@ -145,15 +145,27 @@ export class OBJIOImpl implements OBJIO {
     }
 
     const objs = findAllObjFields(obj, [obj]);
-
-    const res = await this.store.createObjects(objs.map(obj => {
+    const objsJSONMap: objio.CreateObjectsArgs = {};
+    const objsMap: {[id: string]: OBJIOItem} = {};
+    objs.forEach(obj => {
       const objClass = obj.constructor as any as OBJIOItemClass;
-      return {classId: objClass.TYPE_ID, json: obj.getHolder().getJSON()};
-    }));
 
-    res.forEach((item, idx) => {
-      const obj = objs[idx] as OBJIOItem;
-      this.initNewObject(obj, item.id, item.version);
+      const holder = obj.getHolder();
+      const id = obj.getHolder().getID();
+
+      objsMap[id] = obj;
+      objsJSONMap[id] = {
+        classId: objClass.TYPE_ID,
+        json: holder.getJSON()
+      };
+    });
+
+    const res = await this.store.createObjects(objsJSONMap);
+
+    Object.keys(res).forEach(id => {
+      const obj = objsMap[id];
+      const item = res[id];
+      this.initNewObject(obj, item.newId, item.version);
     });
 
     return obj as any as T;
