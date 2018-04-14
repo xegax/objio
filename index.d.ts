@@ -9,7 +9,7 @@ declare module 'objio' {
   }
 
   interface WriteResult {
-    items: Array<CreateResult>;
+    items: Array<{id: string, json: Object, version: string}>;
     removed: Array<string>;
   }
 
@@ -18,16 +18,18 @@ declare module 'objio' {
   }
   
   interface CreateResult {
-    id: string;
-    json: Object;
-    version: string;
+    [id: string]: {
+      newId: string;
+      json: Object;
+      version: string;
+    }
   }
 
-  type CreateObjectsArgs = Array<{classId: string, json: Object}>;
+  type CreateObjectsArgs = {[id: string]: {classId: string, json: Object}};
   type WriteObjectsArgs = Array<{id: string, json: Object, version: string}>;
 
   class OBJIOStore {
-    createObjects(args: CreateObjectsArgs): Promise<Array<CreateResult>>;
+    createObjects(args: CreateObjectsArgs): Promise<CreateResult>;
     writeObjects(args: WriteObjectsArgs): Promise<WriteResult>;
 
     // read all objects tree
@@ -91,7 +93,9 @@ declare module 'objio' {
     getLength(): number;
     get(n: number): T;
     remove(n: number);
-    push(item: T);
+    push(item: T): OBJIOItemHolder;
+    insert(item: T, n: number): OBJIOItemHolder;
+    find(f: ((v: T) => boolean) | T): number;
   }
 
   interface OBJIOItemHolder extends Publisher {
