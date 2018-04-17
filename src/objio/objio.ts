@@ -5,7 +5,8 @@ import {
   OBJIOStore,
   Observer,
   CreateResult,
-  WatchResult
+  WatchResult,
+  WatchArgs
 } from 'objio';
 import * as objio from 'objio';
 import { OBJIOFactoryImpl } from './factory';
@@ -256,8 +257,11 @@ export class OBJIOImpl implements OBJIO {
     return objs.map(item => this.objectMap[item.id]);
   }
 
-  startWatch(req: Requestor, timeOut: number, baseUrl?: string): WatchResult {
-    baseUrl = baseUrl || 'objio/watcher/';
+  startWatch(args: WatchArgs): WatchResult {
+    const baseUrl = args.baseUrl || 'objio/watcher/';
+    const timeOut = args.timeOut;
+    const req = args.req;
+    const prj = args.prj ? {prj: args.prj} : {};
   
     let prev = { version: -1 };
     let run = true;
@@ -269,7 +273,7 @@ export class OBJIOImpl implements OBJIO {
 
       let w: { version: number };
       try {
-        w = await req.sendJSON<{version: number}>(`${baseUrl}version`, {}, prev);
+        w = await req.sendJSON<{version: number}>(`${baseUrl}version`, prj, prev);
       } catch (e) {
         return setTimeout(loop, timeOut);
       }
@@ -280,7 +284,7 @@ export class OBJIOImpl implements OBJIO {
       await this.getWrites();
   
       prev = w;
-      const items = await req.getJSON<Array<{id: string, version: string}>>(`${baseUrl}items`);
+      const items = await req.getJSON<Array<{id: string, version: string}>>(`${baseUrl}items`, prj);
       const res = await this.updateObjects(items);
       
       subscribers.forEach(s => {

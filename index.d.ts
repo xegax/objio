@@ -56,11 +56,18 @@ declare module 'objio' {
   }
 
   interface Requestor {
+    getJSON<T>(url: string, params?: Object): Promise<T>;
     sendJSON<T>(url: string, params?: Object, postData?: Object): Promise<T>;
   }
 
+  interface OBJIORemoteStoreArgs {
+    root?: string;
+    prj?: string;
+    req: Requestor;
+  }
+
   class OBJIORemoteStore extends OBJIOStore {
-    constructor(requestor: Requestor, root?: string);
+    constructor(args: OBJIORemoteStoreArgs);
   }
 
   interface Observer {
@@ -73,6 +80,13 @@ declare module 'objio' {
     stop();
   }
 
+  interface WatchArgs {
+    req: Requestor;
+    timeOut: number;
+    baseUrl?: string;
+    prj?: string;
+  }
+
   interface OBJIO {
     createObject<T extends OBJIOItem>(objOrClass: OBJIOItem | string): Promise<T>;
     loadObject<T extends OBJIOItem>(id: string): Promise<T>;
@@ -82,7 +96,7 @@ declare module 'objio' {
     addObserver(obj: Observer);
     getWrites(): Array<Promise<any>>;
 
-    startWatch(req: Requestor, timeOut: number, baseUrl?: string): WatchResult;
+    startWatch(args: WatchArgs): WatchResult;
   }
 
   class OBJIOItem {
