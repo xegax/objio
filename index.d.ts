@@ -62,7 +62,6 @@ declare module 'objio' {
 
   interface OBJIORemoteStoreArgs {
     root?: string;
-    prj?: string;
     req: Requestor;
   }
 
@@ -84,7 +83,6 @@ declare module 'objio' {
     req: Requestor;
     timeOut: number;
     baseUrl?: string;
-    prj?: string;
   }
 
   interface OBJIO {

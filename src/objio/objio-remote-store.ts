@@ -1,36 +1,35 @@
-import { OBJIOStore, WriteResult, CreateObjectsArgs, CreateResult, Requestor } from 'objio';
-
-interface OBJIORemoteStoreArgs {
-  root?: string;
-  prj?: string;
-  req: Requestor;
-}
+import {
+  OBJIOStore,
+  WriteResult,
+  CreateObjectsArgs,
+  CreateResult,
+  Requestor,
+  OBJIORemoteStoreArgs
+} from 'objio';
 
 export class OBJIORemoteStore implements OBJIOStore {
   private req: Requestor;
   private root: string = 'objio/';
-  private prj: { prj?: string };
 
   constructor(args: OBJIORemoteStoreArgs) {
     this.req = args.req;
     this.root = args.root || this.root;
-    this.prj = args.prj ? { prj: args.prj } : {};
   }
 
   createObjects(arr: CreateObjectsArgs): Promise<CreateResult> {
-    return this.req.sendJSON(`${this.root}create-object`, this.prj, arr);
+    return this.req.sendJSON(`${this.root}create-object`, {}, arr);
   }
 
   writeObjects(arr: Array<{id: string, json: Object}>): Promise<WriteResult> {
-    return this.req.sendJSON(`${this.root}write-objects`, this.prj, arr);
+    return this.req.sendJSON(`${this.root}write-objects`, {}, arr);
   }
 
   readObject(id: string): Promise<any> {
-    return this.req.sendJSON(`${this.root}read-object`, this.prj, {id});
+    return this.req.sendJSON(`${this.root}read-object`, {}, {id});
   }
 
   readObjects(id: string): Promise<any> {
-    return this.req.sendJSON(`${this.root}read-objects`, this.prj, {id});
+    return this.req.sendJSON(`${this.root}read-objects`, {}, {id});
   }
 
   methodInvoker(id: string, method: string, args: Object): Promise<any> {

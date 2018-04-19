@@ -261,8 +261,7 @@ export class OBJIOImpl implements OBJIO {
     const baseUrl = args.baseUrl || 'objio/watcher/';
     const timeOut = args.timeOut;
     const req = args.req;
-    const prj = args.prj ? {prj: args.prj} : {};
-  
+
     let prev = { version: -1 };
     let run = true;
     let subscribers = Array<(arr: Array<OBJIOItem>) => void>();
@@ -273,7 +272,7 @@ export class OBJIOImpl implements OBJIO {
 
       let w: { version: number };
       try {
-        w = await req.sendJSON<{version: number}>(`${baseUrl}version`, prj, prev);
+        w = await req.sendJSON<{version: number}>(`${baseUrl}version`, {}, prev);
       } catch (e) {
         return setTimeout(loop, timeOut);
       }
@@ -284,7 +283,7 @@ export class OBJIOImpl implements OBJIO {
       await this.getWrites();
   
       prev = w;
-      const items = await req.getJSON<Array<{id: string, version: string}>>(`${baseUrl}items`, prj);
+      const items = await req.getJSON<Array<{id: string, version: string}>>(`${baseUrl}items`, {});
       const res = await this.updateObjects(items);
       
       subscribers.forEach(s => {
