@@ -1,4 +1,8 @@
 node_modules
-src/**/*.js.map
+*.js
+*.js.map
+*.d.ts
 src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
 package-lock.json

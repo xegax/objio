@@ -1,17 +1,15 @@
 {
   "name": "objio",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "",
   "main": "index.js",
   "repository": "git@github.com:xegax/objio.git",
   "scripts": {
-    "dist": "node_modules/.bin/webpack",
-    "tsc": "tsc -m umd",
-    "clean": "cd src && rm -r ./*/*.js ./*/*.js.map",
-    "run-test-node": "node_modules/.bin/jasmine --config=jasmine-node.json",
-    "test-node": "npm run tsc && npm run run-test-node",
-    "karma": "node node_modules/karma/bin/karma start karma.conf.js",
-    "test": "npm run dev && npm run karma"
+    "prepare": "tsc --declaration",
+    "postpublish": "npm run clean",
+    "dist": "tsc",
+    "dev": "tsc",
+    "clean": "shx rm src/**/*.js src/**/*.js.map src/**/*.d.ts *.d.ts *.js *.js.map"
   },
   "author": "xega",
   "license": "ISC",

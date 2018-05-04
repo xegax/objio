@@ -1,13 +1,8 @@
-import {
-  OBJIO,
-  OBJIOFactory,
-  OBJIOItemClass,
-  OBJIOItemHolder
-} from 'objio';
-import {OBJIOArray} from './objio-array';
+import { OBJIOArray } from './array';
+import { OBJIOItemClass } from './item';
 
-export class OBJIOFactoryImpl implements OBJIOFactory {
-  private map: {[objType: string]: OBJIOItemClass} = {};
+export class OBJIOFactory {
+  private map: { [objType: string]: OBJIOItemClass } = {};
 
   registerItem(itemClass: OBJIOItemClass) {
     if (itemClass.TYPE_ID == null || typeof itemClass.TYPE_ID != 'string')
@@ -32,7 +27,7 @@ export class OBJIOFactoryImpl implements OBJIOFactory {
 }
 
 export function createFactory(): Promise<OBJIOFactory> {
-  let factory = new OBJIOFactoryImpl();
+  let factory = new OBJIOFactory();
   factory.registerItem(OBJIOArray);
 
   return Promise.resolve(factory);

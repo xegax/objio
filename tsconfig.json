@@ -1,15 +1,9 @@
 {
   "compilerOptions": {
-    "module": "amd",
+    "module": "commonjs",
     "target": "es5",
     "moduleResolution": "node",
     "noImplicitAny": false,
-    "sourceMap": true,
-    "baseUrl": "./src",
-    "jsx": "react"
-  },
-  "include": [
-    "./src/**/*",
-    "./index.d.ts"
-  ]
+    "sourceMap": true
+  }
 }

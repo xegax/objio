@@ -1,11 +1,17 @@
 import {
-  OBJIOStore,
-  WriteResult,
+  Requestor
+} from './common';
+import {
   CreateObjectsArgs,
   CreateResult,
-  Requestor,
-  OBJIORemoteStoreArgs
-} from 'objio';
+  OBJIOStore,
+  WriteResult
+} from './store';
+
+export interface OBJIORemoteStoreArgs {
+  root?: string;
+  req: Requestor;
+}
 
 export class OBJIORemoteStore implements OBJIOStore {
   private req: Requestor;

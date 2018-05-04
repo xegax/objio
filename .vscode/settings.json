@@ -9,8 +9,6 @@
 		".gitignore": true,
 		"src/**/*.js": true,
 		"src/**/*.js.map": true,
-		"src/examples-main/examples-list.ts": true
+		"src/**/*.d.ts": true
 	}
-,
-"typescript.check.workspaceVersion": false
 }

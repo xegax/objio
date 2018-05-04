@@ -1,6 +1,4 @@
-import * as objio from 'objio';
-
-export class Publisher implements objio.Publisher {
+export class Publisher {
   private observers = Array<() => void>();
 
   subscribe(o: () => void) {

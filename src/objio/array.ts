@@ -1,7 +1,11 @@
-import * as objio from 'objio';
-import {OBJIOItem} from './objio-item';
+import {
+  OBJIOItem,
+  LoadStoreArgs,
+  SERIALIZER,
+  OBJIOItemHolder
+} from './item';
 
-export class OBJIOArray<T = objio.OBJIOItem> extends OBJIOItem implements objio.OBJIOArray<T>  {
+export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
   private arr: Array<T> = Array<T>();
 
   getLength(): number {
@@ -16,12 +20,12 @@ export class OBJIOArray<T = objio.OBJIOItem> extends OBJIOItem implements objio.
     this.arr.splice(n, 1);
   }
 
-  push(item: T) {
+  push(item: T): OBJIOItemHolder {
     this.arr.push(item);
     return this.holder;
   }
 
-  insert(item: T, n: number) {
+  insert(item: T, n: number): OBJIOItemHolder {
     this.arr.splice(n, 0, item);
     return this.holder;
   }
@@ -33,22 +37,22 @@ export class OBJIOArray<T = objio.OBJIOItem> extends OBJIOItem implements objio.
   }
 
   static TYPE_ID = 'OBJIOArray';
-  static SERIALIZE: objio.SERIALIZER = () => ({
-    'arr': {type: 'json'}
+  static SERIALIZE: SERIALIZER = () => ({
+    'arr': { type: 'json' }
   });
 
-  static loadStore(args: objio.LoadStoreArgs) {
+  static loadStore(args: LoadStoreArgs) {
     const obj = args.obj as OBJIOArray;
     obj.arr = args.store.arr.map(id => args.getObject(id));
   }
 
-  static saveStore(obj: OBJIOArray): {[key: string]: number | string | Array<number|string>} {
+  static saveStore(obj: OBJIOArray): { [key: string]: number | string | Array<number | string> } {
     return {
       arr: obj.arr.map(item => item.getHolder().getID())
     };
   }
 
-  static getIDSFromStore(store: {arr: Array<string>}): Array<string> {
+  static getIDSFromStore(store: { arr: Array<string> }): Array<string> {
     return store.arr;
   }
 }

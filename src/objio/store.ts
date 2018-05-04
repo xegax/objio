@@ -1,14 +1,38 @@
-import {
-  OBJIOFactory,
-  OBJIOStore,
-  OBJIOLocalStore,
-  WriteResult,
-  CreateResult,
-  ReadResult,
-  WriteObjectsArgs,
-  CreateObjectsArgs
-} from 'objio';
+import { OBJIOFactory} from './factory';
 import { cloneDeep } from 'lodash';
+
+export interface WriteResult {
+  items: Array<{ id: string, json: Object, version: string }>;
+  removed: Array<string>;
+}
+
+export interface ReadResult {
+  [id: string]: { classId: string; version: string; json: Object };
+}
+
+export interface CreateResult {
+  [id: string]: {
+    newId: string;
+    json: Object;
+    version: string;
+  };
+}
+
+export type CreateObjectsArgs = { [id: string]: { classId: string, json: Object } };
+export type WriteObjectsArgs = Array<{ id: string, json: Object, version: string }>;
+
+export interface OBJIOStore {
+  createObjects(args: CreateObjectsArgs): Promise<CreateResult>;
+  writeObjects(args: WriteObjectsArgs): Promise<WriteResult>;
+
+  // read all objects tree
+  readObjects(id: string): Promise<ReadResult>;
+
+  // read only one object
+  readObject(id: string): Promise<ReadResult>;
+
+  methodInvoker(id: string, method: string, args: Object): Promise<any>;
+}
 
 export function nextVersion(ver: string) {
   let newVer = '';
@@ -61,22 +85,22 @@ export class OBJIOStoreBase implements OBJIOStore {
   }
 }
 
-interface ObjStore {
+export interface ObjStore {
   data: Object;
   classId: string;
   version: string;
 }
 
-interface StoreData {
+export interface StoreData {
   idCounter: number;
   objects: {[id: string]: ObjStore};
 }
 
-interface StoreState {
+export interface StoreState {
   idCounter: number;
 }
 
-export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
+export class OBJIOLocalStore implements OBJIOStore {
   private idCounter: number = 0;
   private objects: {[id: string]: ObjStore} = {};
   private factory: OBJIOFactory;
@@ -295,5 +319,5 @@ export class OBJIOLocalStoreImpl implements OBJIOLocalStore {
 }
 
 export function createLocalStore(factory: OBJIOFactory): Promise<OBJIOLocalStore> {
-  return Promise.resolve(new OBJIOLocalStoreImpl(factory));
+  return Promise.resolve(new OBJIOLocalStore(factory));
 }

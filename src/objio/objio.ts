@@ -1,21 +1,31 @@
+import { OBJIOFactory } from './factory';
+import { OBJIOStoreBase } from './store';
 import {
-  OBJIO,
+  OBJIOItem,
   OBJIOItemClass,
-  OBJIOFactory,
-  OBJIOStore,
-  Observer,
-  CreateResult,
-  WatchResult,
-  WatchArgs
-} from 'objio';
-import * as objio from 'objio';
-import { OBJIOFactoryImpl } from './factory';
-import { OBJIOStoreBase } from './objio-store';
-import { OBJIOItem, OBJIOItemHolderImpl, findAllObjFields } from './objio-item';
+  OBJIOItemHolder,
+  findAllObjFields
+} from './item';
 import { Timer } from '../common/timer';
 import { SerialPromise } from '../common/serial-promise';
-import { Requestor } from '../requestor/requestor';
-import { OBJIOArray } from './objio-array';
+import { OBJIOArray } from './array';
+import {
+  OBJIOStore,
+  CreateObjectsArgs
+} from './store';
+import { Requestor } from './common';
+
+export interface WatchResult {
+  subscribe(f: (arr: Array<OBJIOItem>) => void);
+  unsubscribe(f: () => void);
+  stop();
+}
+
+export interface WatchArgs {
+  req: Requestor;
+  timeOut: number;
+  baseUrl?: string;
+}
 
 interface OBJItemConstructor extends ObjectConstructor {
   new(): OBJIOItem;
@@ -27,9 +37,9 @@ class SavingQueue {
   private store: OBJIOStore;
   private savePromise: Promise<any>;
   private timer: Timer;
-  private objio: OBJIOImpl;
+  private objio: OBJIO;
 
-  constructor(timeToSave: number, store: OBJIOStore, objio: OBJIOImpl) {
+  constructor(timeToSave: number, store: OBJIOStore, objio: OBJIO) {
     this.timeToSave = timeToSave;
     this.store = store;
     this.objio = objio;
@@ -74,7 +84,7 @@ class SavingQueue {
     }));
 
     objs.items.forEach((obj, i: number) => {
-      const holder = queue[i].getHolder() as OBJIOItemHolderImpl;
+      const holder = queue[i].getHolder() as OBJIOItemHolder;
       holder.updateVersion(obj.version);
     });
 
@@ -83,15 +93,19 @@ class SavingQueue {
   }
 }
 
-export class OBJIOImpl implements OBJIO {
-  private factory: OBJIOFactoryImpl;
+export interface Observer {
+  onSave?: () => void;
+}
+
+export class OBJIO {
+  private factory: OBJIOFactory;
   private store: OBJIOStoreBase;
-  private objectMap: {[key: string]: OBJIOItem} = {};
+  private objectMap: { [key: string]: OBJIOItem } = {};
   private savingQueue: SavingQueue;
   private observers: Array<Observer> = Array<Observer>();
 
-  static create(factory: OBJIOFactoryImpl, store: OBJIOStore): Promise<OBJIO> {
-    let obj = new OBJIOImpl();
+  static create(factory: OBJIOFactory, store: OBJIOStore): Promise<OBJIO> {
+    let obj = new OBJIO();
     obj.store = new OBJIOStoreBase(store);
     obj.factory = factory;
     obj.savingQueue = new SavingQueue(100, store, obj);
@@ -119,7 +133,7 @@ export class OBJIOImpl implements OBJIO {
   }
 
   private initNewObject(obj: OBJIOItem, objId: string, version: string) {
-    obj.holder = new OBJIOItemHolderImpl({
+    obj.holder = new OBJIOItemHolder({
       obj,
       id: objId,
       version,
@@ -146,8 +160,8 @@ export class OBJIOImpl implements OBJIO {
     }
 
     const objs = findAllObjFields(obj, [obj]);
-    const objsJSONMap: objio.CreateObjectsArgs = {};
-    const objsMap: {[id: string]: OBJIOItem} = {};
+    const objsJSONMap: CreateObjectsArgs = {};
+    const objsMap: { [id: string]: OBJIOItem } = {};
     objs.forEach(obj => {
       const objClass = obj.constructor as any as OBJIOItemClass;
 
@@ -172,10 +186,10 @@ export class OBJIOImpl implements OBJIO {
     return obj as any as T;
   }
 
-  async loadObject<T extends objio.OBJIOItem>(id: string): Promise<T> {
+  async loadObject<T extends OBJIOItem>(id: string): Promise<T> {
     const objsMap = await this.store.readObjects(id);
 
-    const loadObjectImpl = (objId: string): objio.OBJIOItem => {
+    const loadObjectImpl = (objId: string): OBJIOItem => {
       const store = objsMap[objId];
       let objClass = this.factory.findItem(store.classId);
       let newObj: OBJIOItem;
@@ -187,7 +201,7 @@ export class OBJIOImpl implements OBJIO {
         this.initNewObject(newObj as OBJIOItem, objId, store.version);
       }
 
-      const holder = newObj.getHolder() as OBJIOItemHolderImpl;
+      const holder = newObj.getHolder() as OBJIOItemHolder;
       holder.setJSON(store.json, store.version);
 
       objClass.loadStore({
@@ -204,7 +218,7 @@ export class OBJIOImpl implements OBJIO {
 
   private updateTasks = new SerialPromise();
 
-  updateObjects(objs: Array<{id: string, version: string}>): Promise<Array<OBJIOItem>> {
+  updateObjects(objs: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
     const writes = this.store.getWrites();
     if (writes.length)
       this.updateTasks.append(() => Promise.all(writes));
@@ -212,7 +226,7 @@ export class OBJIOImpl implements OBJIO {
     return this.updateTasks.append(() => this.updateObjectsImpl(objs));
   }
 
-  private async updateObjectsImpl(objs: Array<{id: string, version: string}>): Promise<Array<OBJIOItem>> {
+  private async updateObjectsImpl(objs: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
     objs = objs.filter(item => {
       const obj = this.objectMap[item.id];
       return obj == null || obj.getHolder().getVersion() != item.version;
@@ -220,7 +234,7 @@ export class OBJIOImpl implements OBJIO {
 
     console.log('updateObjects', objs);
 
-    const updateObject = async (item: {id: string, version: string}) => {
+    const updateObject = async (item: { id: string, version: string }) => {
       const obj = this.objectMap[item.id];
       if (!obj) {
         await this.loadObject(item.id);
@@ -228,13 +242,13 @@ export class OBJIOImpl implements OBJIO {
       }
 
       const res = await this.store.readObject(item.id);
-      const {classId, version, json} = res[item.id];
+      const { classId, version, json } = res[item.id];
       const objClass = this.factory.findItem(classId);
       const extraObjs = objClass.getIDSFromStore(json).filter(id => this.objectMap[id] == null);
       if (extraObjs.length)
         await Promise.all(extraObjs.map(id => this.loadObject(id)));
 
-      (obj.getHolder() as OBJIOItemHolderImpl).setJSON(json, version);
+      (obj.getHolder() as OBJIOItemHolder).setJSON(json, version);
       obj.getHolder().notify();
       return { id: item.id, json };
     };
@@ -265,27 +279,27 @@ export class OBJIOImpl implements OBJIO {
     let prev = { version: -1 };
     let run = true;
     let subscribers = Array<(arr: Array<OBJIOItem>) => void>();
-  
+
     const loop = async () => {
       if (!run)
         return;
 
       let w: { version: number };
       try {
-        w = await req.sendJSON<{version: number}>(`${baseUrl}version`, {}, prev);
+        w = await req.sendJSON<{ version: number }>(`${baseUrl}version`, {}, prev);
       } catch (e) {
         return setTimeout(loop, timeOut);
       }
-  
+
       if (prev && w.version == prev.version)
         return setTimeout(loop, timeOut);
-  
+
       await this.getWrites();
-  
+
       prev = w;
-      const items = await req.getJSON<Array<{id: string, version: string}>>(`${baseUrl}items`, {});
+      const items = await req.getJSON<Array<{ id: string, version: string }>>(`${baseUrl}items`, {});
       const res = await this.updateObjects(items);
-      
+
       subscribers.forEach(s => {
         try {
           s(res);
@@ -295,7 +309,7 @@ export class OBJIOImpl implements OBJIO {
       });
 
       setTimeout(loop, timeOut);
-    }
+    };
 
     loop();
 
@@ -311,6 +325,6 @@ export class OBJIOImpl implements OBJIO {
   }
 }
 
-export function createOBJIO(factory: OBJIOFactoryImpl, store: OBJIOStore): Promise<OBJIO> {
-  return OBJIOImpl.create(factory, store);
+export function createOBJIO(factory: OBJIOFactory, store: OBJIOStore): Promise<OBJIO> {
+  return OBJIO.create(factory, store);
 }
