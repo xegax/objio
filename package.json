@@ -11,9 +11,9 @@
     "dev": "tsc",
     "test": "node_modules/.bin/mocha",
     "clean": "npm run clean-index && npm run clean-src && npm run clean-test",
-    "clean-index": "shx rm index.d.ts index.js index.js.map",
-    "clean-src": "shx rm src/**/*.js src/**/*.js.map src/**/*.d.ts",
-    "clean-test": "shx rm test/**/*.js test/**/*.js.map test/**/*.d.ts"
+    "clean-index": "shx rm -rf index.d.ts index.js index.js.map",
+    "clean-src": "shx rm -rf src/**/*.js src/**/*.js.map src/**/*.d.ts",
+    "clean-test": "shx rm -rf test/**/*.js test/**/*.js.map"
   },
   "author": "xega",
   "license": "ISC",
