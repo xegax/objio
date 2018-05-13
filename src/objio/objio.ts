@@ -27,10 +27,6 @@ export interface WatchArgs {
   baseUrl?: string;
 }
 
-interface OBJItemConstructor extends ObjectConstructor {
-  new(): OBJIOItem;
-}
-
 class SavingQueue {
   private queue = Array<OBJIOItem>();
   private timeToSave: number = 0;
@@ -153,8 +149,8 @@ export class OBJIO {
   async createObject<T>(objOrClass: OBJIOItem | string): Promise<T> {
     let obj: OBJIOItem;
     if (typeof objOrClass == 'string') {
-      const f: OBJItemConstructor = this.factory.findItem(objOrClass) as any;
-      obj = new f();
+      const objClass = this.factory.findItem(objOrClass) as any;
+      obj = OBJIOItem.create(objClass);
     } else {
       obj = objOrClass;
     }
@@ -189,26 +185,22 @@ export class OBJIO {
   async loadObject<T extends OBJIOItem>(id: string): Promise<T> {
     const objsMap = await this.store.readObjects(id);
 
-    const loadObjectImpl = (objId: string): OBJIOItem => {
+    const loadObjectImpl = (objId: string) => {
       const store = objsMap[objId];
-      let objClass = this.factory.findItem(store.classId);
+      const objClass = this.factory.findItem(store.classId);
       let newObj: OBJIOItem;
 
-      if (this.objectMap[objId]) {
-        newObj = this.objectMap[objId];
-      } else {
-        newObj = new (objClass as any as OBJItemConstructor)();
-        this.initNewObject(newObj as OBJIOItem, objId, store.version);
+      if (!(newObj = this.objectMap[objId])) {
+        newObj = OBJIOItem.create(objClass);
+        this.initNewObject(newObj, objId, store.version);
       }
-
-      const holder = newObj.getHolder() as OBJIOItemHolder;
-      holder.setJSON(store.json, store.version);
 
       objClass.loadStore({
         obj: newObj,
-        store: store.json as any,
+        store: store.json,
         getObject: loadObjectImpl
       });
+      newObj.getHolder().updateVersion(store.version);
 
       return newObj;
     };
@@ -244,12 +236,18 @@ export class OBJIO {
       const res = await this.store.readObject(item.id);
       const { classId, version, json } = res[item.id];
       const objClass = this.factory.findItem(classId);
-      const extraObjs = objClass.getIDSFromStore(json).filter(id => this.objectMap[id] == null);
+      const extraObjs = objClass.getRelObjIDS(json).filter(id => this.objectMap[id] == null);
       if (extraObjs.length)
         await Promise.all(extraObjs.map(id => this.loadObject(id)));
 
-      (obj.getHolder() as OBJIOItemHolder).setJSON(json, version);
+      objClass.loadStore({
+        obj,
+        getObject: id => this.loadObject(id),
+        store: json
+      });
+      obj.getHolder().updateVersion(version);
       obj.getHolder().notify();
+
       return { id: item.id, json };
     };
 
@@ -260,10 +258,10 @@ export class OBJIO {
         return;
 
       const obj = this.objectMap[item.id];
-      const { loadStore } = OBJIOItem.getClassDesc(obj);
+      const { loadStore } = OBJIOItem.getClass(obj);
       loadStore({
         obj,
-        store: item.json as any,
+        store: item.json,
         getObject: id => this.objectMap[id]
       });
     });

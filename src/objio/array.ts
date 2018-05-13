@@ -2,7 +2,10 @@ import {
   OBJIOItem,
   LoadStoreArgs,
   SERIALIZER,
-  OBJIOItemHolder
+  OBJIOItemHolder,
+  SaveStoreResult,
+  LoadStoreResult,
+  GetRelObjIDSResult
 } from './item';
 
 export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
@@ -41,18 +44,20 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
     'arr': { type: 'json' }
   });
 
-  static loadStore(args: LoadStoreArgs) {
+  static loadStore(args: LoadStoreArgs): LoadStoreResult {
     const obj = args.obj as OBJIOArray;
-    obj.arr = args.store.arr.map(id => args.getObject(id));
+    const store = args.store as { arr: string };
+    const arr = JSON.parse(store.arr) as Array<string>;
+    obj.arr = arr.map(id => args.getObject(id) as OBJIOItem);
   }
 
-  static saveStore(obj: OBJIOArray): { [key: string]: number | string | Array<number | string> } {
+  static saveStore(obj: OBJIOArray): SaveStoreResult {
     return {
-      arr: obj.arr.map(item => item.getHolder().getID())
+      arr: JSON.stringify(obj.arr.map(item => item.getHolder().getID()))
     };
   }
 
-  static getIDSFromStore(store: { arr: Array<string> }): Array<string> {
-    return store.arr;
+  static getRelObjIDS(store: {arr: string}): GetRelObjIDSResult {
+    return JSON.parse(store.arr) as Array<string>;
   }
 }

@@ -1,25 +1,35 @@
 import { Publisher } from '../common/publisher';
 
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
-export type SERIALIZER = () => {
-  [key: string]: {
-    type: Type;
-    classId?: string
-  }
+export type Field = {
+  type: Type;
+  classId?: string;
 };
+
+export type SERIALIZER = () => {
+  [key: string]: Field
+};
+
+interface OBJItemConstructor extends ObjectConstructor {
+  new(): OBJIOItem;
+}
 
 export interface LoadStoreArgs {
   obj: OBJIOItem;
-  store: { arr: Array<string> };
-  getObject: (id: string) => OBJIOItem;
+  store: Object;
+  getObject: (id: string) => Promise<OBJIOItem> | OBJIOItem;
 }
+
+export type SaveStoreResult = { [key: string]: number | string };
+export type LoadStoreResult = Promise<any> | void;
+export type GetRelObjIDSResult = Array<string>;
 
 export interface OBJIOItemClass {
   TYPE_ID: string;
   SERIALIZE: SERIALIZER;
-  loadStore?: (args: LoadStoreArgs) => void;
-  saveStore?: (obj: OBJIOItem) => { [key: string]: number | string | Array<number | string> };
-  getIDSFromStore?: (store: Object) => Array<string>;
+  loadStore?: (args: LoadStoreArgs) => LoadStoreResult;
+  saveStore?: (obj: OBJIOItem) => SaveStoreResult;
+  getRelObjIDS?: (store: Object) => GetRelObjIDSResult;
 }
 
 export interface InitArgs {
@@ -58,7 +68,7 @@ export class OBJIOItemHolder extends Publisher {
   }
 
   getJSON(): { [key: string]: number | string | Array<number | string> } {
-    const objClass: OBJIOItemClass = this.obj.constructor as any;
+    const objClass: OBJIOItemClass = OBJIOItem.getClass(this.obj);
     if (objClass.saveStore) {
       return objClass.saveStore(this.obj);
     }
@@ -80,24 +90,6 @@ export class OBJIOItemHolder extends Publisher {
     });
 
     return json;
-  }
-
-  setJSON(json: Object, srvVersion: string) {
-    const objClass: OBJIOItemClass = this.obj.constructor as any;
-
-    const srDesc = objClass.SERIALIZE();
-    Object.keys(srDesc).forEach(k => {
-      if (json[k] == null)
-        return;
-
-      if (srDesc[k].type == 'json' && typeof json[k] == 'string') {
-        this.obj[k] = JSON.parse(json[k]);
-      } else if (srDesc[k].type != 'object') {
-        this.obj[k] = json[k];
-      }
-    });
-
-    this.srvVersion = srvVersion;
   }
 
   updateVersion(version: string) {
@@ -122,31 +114,68 @@ export class OBJIOItem {
     return this.holder;
   }
 
-  static getClassDesc(obj: OBJIOItem): OBJIOItemClass {
-    return obj.constructor as any as OBJIOItemClass;
+  static loadStore(args: LoadStoreArgs): LoadStoreResult {
+    const fields = this.getClass().SERIALIZE();
+    const names = Object.keys(fields);
+    let promises = Array<Promise<any>>();
+    for (let n = 0; n < names.length; n++) {
+      const name = names[n];
+      const field = fields[ name ];
+      const value = args.store[ name ];
+
+      if (field.type == 'object') {
+        const obj = args.getObject(value);
+        if (obj instanceof OBJIOItem) {
+          args.obj[ name ] = obj;
+        } else {
+          promises.push(obj);
+          obj.then(obj => args.obj[ name ] = obj);
+          obj.catch( err => {
+            args.obj[ name ] = null;
+            console.log(err);
+          });
+        }
+      } else if (field.type == 'json' && typeof value == 'string') {
+        args.obj[ name ] = JSON.parse(value);
+      } else {
+        args.obj[ name ] = value;
+      }
+    }
+    return Promise.all(promises);
   }
 
-  static loadStore(args: LoadStoreArgs) {
-    const { SERIALIZE } = OBJIOItem.getClassDesc(args.obj as OBJIOItem);
-    const fields = SERIALIZE();
-    Object.keys(args.store).forEach(name => {
-      if (fields[name].type == 'object')
-        args.obj[name] = args.getObject(args.store[name]);
-    });
-  }
+  static getRelObjIDS(store: Object): GetRelObjIDSResult {
+    const fields = this.getClass().SERIALIZE();
+    const names = Object.keys(fields);
 
-  static getIDSFromStore(store: Object) {
-    const classItem: OBJIOItemClass = this as any;
-    const { SERIALIZE } = classItem;
-    const fields = SERIALIZE();
     const ids: Array<string> = [];
+    for (let n = 0; n < names.length; n++) {
+      const name = names[n];
 
-    Object.keys(fields).forEach(key => {
-      if (fields[key].type == 'object' && store[key] != null && ids.indexOf(store[key]) == -1)
-        ids.push(store[key]);
-    });
+      if (fields[ name ].type != 'object')
+        continue;
+
+      const id = store[ name ];
+      if (id == null)
+        continue;
+
+      if (ids.indexOf(id) != -1)
+        continue;
+
+      ids.push(id);
+    }
 
     return ids;
+  }
+
+  static create(objClass: OBJIOItemClass): OBJIOItem {
+    return new (objClass as any as OBJItemConstructor)();
+  }
+
+  static getClass(obj?: OBJIOItem): OBJIOItemClass {
+    if (!obj)
+      return this as any;
+    return obj.constructor as any as OBJIOItemClass;
   }
 }
 

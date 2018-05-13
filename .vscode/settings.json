@@ -9,6 +9,11 @@
 		".gitignore": true,
 		"src/**/*.js": true,
 		"src/**/*.js.map": true,
-		"src/**/*.d.ts": true
+		"src/**/*.d.ts": true,
+		"test/**/*.js": true,
+		"test/**/*.js.map": true,
+		"index.js": true,
+		"index.js.map": true,
+		"index.d.ts": true
 	}
 }

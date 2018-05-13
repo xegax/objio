@@ -177,9 +177,9 @@ export class OBJIOLocalStore implements OBJIOStore {
           if (!classItem)
             throw `classItem for ${classId} not found`;
 
-          if (!classItem.getIDSFromStore)
+          if (!classItem.getRelObjIDS)
             throw `getIDSFromStore for ${classId} not found`;
-          const idsArr = classItem.getIDSFromStore(data);
+          const idsArr = classItem.getRelObjIDS(data);
           if (!idsArr)
             throw `getIDSFromStore return ${idsArr} for ${classId}`;
           idsArr.forEach(id => {
@@ -210,7 +210,7 @@ export class OBJIOLocalStore implements OBJIOStore {
     Object.keys(this.objects).forEach(id => {
       const {classId, data} = this.objects[id];
       const classItem = this.factory.findItem(classId);
-      classItem.getIDSFromStore(data).forEach(id => {
+      classItem.getRelObjIDS(data).forEach(id => {
         if (id in removedIds)
           removedIds[id]++;
       });
@@ -273,8 +273,8 @@ export class OBJIOLocalStore implements OBJIOStore {
     if (!deep)
       return;
 
-    if (classItem.getIDSFromStore)
-      classItem.getIDSFromStore(objStore.data).forEach(id => this.readObjectResult(id, res, deep));
+    if (classItem.getRelObjIDS)
+      classItem.getRelObjIDS(objStore.data).forEach(id => this.readObjectResult(id, res, deep));
 
     const fields = classItem.SERIALIZE();
     Object.keys(fields).forEach(name => {
