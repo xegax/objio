@@ -258,8 +258,7 @@ export class OBJIO {
         return;
 
       const obj = this.objectMap[item.id];
-      const { loadStore } = OBJIOItem.getClass(obj);
-      loadStore({
+      OBJIOItem.getClass(obj).loadStore({
         obj,
         store: item.json,
         getObject: id => this.objectMap[id]
