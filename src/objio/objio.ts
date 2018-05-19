@@ -3,8 +3,7 @@ import { OBJIOStoreBase } from './store';
 import {
   OBJIOItem,
   OBJIOItemClass,
-  OBJIOItemHolder,
-  findAllObjFields
+  OBJIOItemHolder
 } from './item';
 import { Timer } from '../common/timer';
 import { SerialPromise } from '../common/serial-promise';
@@ -155,7 +154,7 @@ export class OBJIO {
       obj = objOrClass;
     }
 
-    const objs = findAllObjFields(obj, [obj]);
+    const objs = OBJIOItem.getRelObjs(obj, [obj]);
     const objsJSONMap: CreateObjectsArgs = {};
     const objsMap: { [id: string]: OBJIOItem } = {};
     objs.forEach(obj => {

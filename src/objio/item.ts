@@ -30,6 +30,7 @@ export interface OBJIOItemClass {
   loadStore?: (args: LoadStoreArgs) => LoadStoreResult;
   saveStore?: (obj: OBJIOItem) => SaveStoreResult;
   getRelObjIDS?: (store: Object) => GetRelObjIDSResult;
+  getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
 }
 
 export interface InitArgs {
@@ -172,6 +173,22 @@ export class OBJIOItem {
     return ids;
   }
 
+  static getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem> {
+    arr = arr || [];
+
+    const fields = OBJIOItem.getClass(obj).SERIALIZE();
+    Object.keys(fields).forEach(name => {
+      if (fields[name].type != 'object')
+        return;
+
+      const childObj: OBJIOItem = obj[name];
+      OBJIOItem.getClass(childObj).getRelObjs(childObj, arr);
+      arr.push(childObj);
+    });
+
+    return arr;
+  }
+
   static create(objClass: OBJIOItemClass): OBJIOItem {
     return new (objClass as any as OBJItemConstructor)();
   }
@@ -183,7 +200,7 @@ export class OBJIOItem {
   }
 }
 
-export function findAllObjFields(root: OBJIOItem, lst?: Array<OBJIOItem>): Array<OBJIOItem> {
+/*export function findAllObjFields(root: OBJIOItem, lst?: Array<OBJIOItem>): Array<OBJIOItem> {
   if (!root)
     return;
 
@@ -201,3 +218,4 @@ export function findAllObjFields(root: OBJIOItem, lst?: Array<OBJIOItem>): Array
 
   return lst;
 }
+*/

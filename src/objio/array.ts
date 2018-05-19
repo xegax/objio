@@ -68,4 +68,13 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
   static getRelObjIDS(store: {arr: string}): GetRelObjIDSResult {
     return JSON.parse(store.arr) as Array<string>;
   }
+
+  static getRelObjs(obj: OBJIOArray, arr?: Array<OBJIOItem>): Array<OBJIOItem> {
+    arr = arr || [];
+    obj.arr.forEach(o => {
+      OBJIOItem.getClass(o).getRelObjs(o, arr);
+      arr.push(o);
+    });
+    return arr;
+  }
 }
