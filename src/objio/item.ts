@@ -121,10 +121,14 @@ export class OBJIOItem {
     for (let n = 0; n < names.length; n++) {
       const name = names[n];
       const field = fields[ name ];
-      const value = args.store[ name ];
+      const valueOrID = args.store[ name ];
 
       if (field.type == 'object') {
-        const obj = args.getObject(value);
+        // it may be new fields
+        if (valueOrID == null)
+          continue;
+
+        const obj = args.getObject(valueOrID);
         if (obj instanceof OBJIOItem) {
           args.obj[ name ] = obj;
         } else {
@@ -135,10 +139,10 @@ export class OBJIOItem {
             console.log(err);
           });
         }
-      } else if (field.type == 'json' && typeof value == 'string') {
-        args.obj[ name ] = JSON.parse(value);
+      } else if (field.type == 'json' && typeof valueOrID == 'string') {
+        args.obj[ name ] = JSON.parse(valueOrID);
       } else {
-        args.obj[ name ] = value;
+        args.obj[ name ] = valueOrID;
       }
     }
     return Promise.all(promises);
