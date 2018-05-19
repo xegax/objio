@@ -154,11 +154,7 @@ export class OBJIOLocalStore implements OBJIOStore {
     Object.keys(objMap).forEach(id => {
       const { newId, json } = res[id];
       const objClass = this.factory.findItem(this.objects[newId].classId);
-      const fields = objClass.SERIALIZE();
-      Object.keys(fields).forEach(name => {
-        if (fields[name].type == 'object')
-          json[name] = res[ json[name] ].newId;
-      });
+      objClass.getRelObjIDS(json, id => res[id].newId);
     });
 
     return Promise.resolve(res);

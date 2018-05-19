@@ -29,7 +29,7 @@ export interface OBJIOItemClass {
   SERIALIZE: SERIALIZER;
   loadStore?: (args: LoadStoreArgs) => LoadStoreResult;
   saveStore?: (obj: OBJIOItem) => SaveStoreResult;
-  getRelObjIDS?: (store: Object) => GetRelObjIDSResult;
+  getRelObjIDS?: (store: Object, replaceID?: (id: string) => string) => GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
 }
 
@@ -149,7 +149,7 @@ export class OBJIOItem {
     return Promise.all(promises);
   }
 
-  static getRelObjIDS(store: Object): GetRelObjIDSResult {
+  static getRelObjIDS(store: Object, replaceID?: (id: string) => string ): GetRelObjIDSResult {
     const fields = this.getClass().SERIALIZE();
     const names = Object.keys(fields);
 
@@ -163,6 +163,9 @@ export class OBJIOItem {
       const id = store[ name ];
       if (id == null)
         continue;
+
+      if (replaceID)
+        store[name] = replaceID(id);
 
       if (ids.indexOf(id) != -1)
         continue;

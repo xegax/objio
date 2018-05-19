@@ -65,8 +65,11 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
     };
   }
 
-  static getRelObjIDS(store: {arr: string}): GetRelObjIDSResult {
-    return JSON.parse(store.arr) as Array<string>;
+  static getRelObjIDS(store: {arr: string}, replaceID?: (id: string) => string): GetRelObjIDSResult {
+    const arr = JSON.parse(store.arr) as Array<string>;
+    if (replaceID)
+      store.arr = JSON.stringify(arr.map(id => replaceID(id)));
+    return arr;
   }
 
   static getRelObjs(obj: OBJIOArray, arr?: Array<OBJIOItem>): Array<OBJIOItem> {
