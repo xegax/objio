@@ -10,6 +10,14 @@ import {
 
 export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
   private arr: Array<T> = Array<T>();
+  constructor(arr?: Array<T>) {
+    super();
+    this.arr = arr || this.arr;
+  }
+
+  getArray(): Array<T> {
+    return this.arr;
+  }
 
   getLength(): number {
     return this.arr.length;
