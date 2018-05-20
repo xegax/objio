@@ -58,6 +58,7 @@ export class OBJIOItemHolder extends Publisher {
     this.obj = args.obj;
     this.srvVersion = args.version;
     this.saveImpl = args.saveImpl;
+    this.createObjectImpl = args.createObjectImpl;
   }
 
   getID(): string {
