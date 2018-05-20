@@ -132,7 +132,8 @@ export class OBJIO {
       obj,
       id: objId,
       version,
-      saveImpl: this.saveImpl
+      saveImpl: this.saveImpl,
+      createObjectImpl: obj => this.createObject(obj)
     });
     this.objectMap[objId] = obj;
   }

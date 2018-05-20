@@ -38,12 +38,15 @@ export interface InitArgs {
   obj: OBJIOItem;
   version: string;
   saveImpl: (obj: OBJIOItem) => Promise<any>;
+  createObjectImpl: (obj: OBJIOItem) => Promise<OBJIOItem>;
 }
 
 export class OBJIOItemHolder extends Publisher {
   private id: string;
   private obj: OBJIOItem;
   private saveImpl: (obj: OBJIOItem) => Promise<any>;
+  private createObjectImpl: (obj: OBJIOItem) => Promise<OBJIOItem>;
+
   private srvVersion: string = '';
 
   constructor(args?: InitArgs) {
@@ -66,6 +69,13 @@ export class OBJIOItemHolder extends Publisher {
       return Promise.reject('saveImpl not defined');
 
     return this.saveImpl(this.obj);
+  }
+
+  createObject<T extends OBJIOItem>(obj: T): Promise<T> {
+    if (!this.createObjectImpl)
+      return Promise.reject<T>('createObject not defined');
+
+    return this.createObjectImpl(obj) as Promise<T>;
   }
 
   getJSON(): { [key: string]: number | string | Array<number | string> } {
@@ -108,6 +118,7 @@ export class OBJIOItem {
     id: 'loc-' + (localIdCounter++),
     obj: this,
     saveImpl: null,
+    createObjectImpl: null,
     version: ''
   });
 
