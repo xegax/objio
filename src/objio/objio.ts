@@ -146,6 +146,10 @@ export class OBJIO {
     return this.factory;
   }
 
+  getObject<T extends OBJIOItem>(id: string): T {
+    return this.objectMap[id] as T;
+  }
+
   async createObject<T>(objOrClass: OBJIOItem | string): Promise<T> {
     let obj: OBJIOItem;
     if (typeof objOrClass == 'string') {
@@ -162,7 +166,7 @@ export class OBJIO {
       const objClass = obj.constructor as any as OBJIOItemClass;
 
       const holder = obj.getHolder();
-      const id = obj.getHolder().getID();
+      const id = holder.getID();
 
       objsMap[id] = obj;
       objsJSONMap[id] = {
