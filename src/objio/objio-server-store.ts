@@ -15,10 +15,10 @@ export class OBJIOServerStore implements OBJIOStore {
   private objio: OBJIO;
   private ssFactory: OBJIOFactory;
 
-  static async create(ssFactory: OBJIOFactory, store: OBJIOStore): Promise<OBJIOServerStore> {
+  static async create(ssFactory: OBJIOFactory, store: OBJIOStore, saveTime?: number): Promise<OBJIOServerStore> {
     let proxyStore = new OBJIOServerStore();
     proxyStore.ssFactory = ssFactory;
-    proxyStore.objio = await OBJIO.create(ssFactory, store);
+    proxyStore.objio = await OBJIO.create(ssFactory, store, saveTime || 1);
     return proxyStore;
   }
 
