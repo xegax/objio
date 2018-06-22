@@ -68,19 +68,22 @@ export class OBJIOServerStore implements OBJIOStore {
     if (!deep)
       return;
 
+    const json = obj.holder.getJSON();
     if (classItem.getRelObjIDS)
-      classItem.getRelObjIDS(obj.holder.getJSON()).forEach(async id => await this.readObjectResult(id, res, deep));
+      await Promise.all(classItem.getRelObjIDS(json).map(id => this.readObjectResult(id, res, deep)));
 
     const fields = classItem.SERIALIZE();
-    const json = obj.holder.getJSON();
+    let tasks: Array<Promise<any>> = [];
     Object.keys(fields).forEach(async name => {
       if (fields[name].type != 'object')
         return;
 
       const nextId = json[name] as string;
       if (nextId)
-        await this.readObjectResult(nextId, res, deep);
+        tasks.push(this.readObjectResult(nextId, res, deep));
     });
+
+    return Promise.all(tasks);
   }
 
   async readObjects(id: string): Promise<ReadResult> {
