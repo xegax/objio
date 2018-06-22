@@ -31,7 +31,7 @@ export interface OBJIOStore {
   // read only one object
   readObject(id: string): Promise<ReadResult>;
 
-  methodInvoker(id: string, method: string, args: Object): Promise<any>;
+  invokeMethod(id: string, method: string, args: Object): Promise<any>;
 }
 
 export function nextVersion(ver: string) {
@@ -76,8 +76,8 @@ export class OBJIOStoreBase implements OBJIOStore {
     return this.storeImpl.readObjects(id);
   }
 
-  methodInvoker(id: string, method: string, args: Object): Promise<any> {
-    return this.storeImpl.methodInvoker(id, method, args);
+  invokeMethod(id: string, method: string, args: Object): Promise<any> {
+    return this.storeImpl.invokeMethod(id, method, args);
   }
 
   getWrites() {
@@ -102,7 +102,7 @@ export interface StoreState {
 
 export class OBJIOLocalStore implements OBJIOStore {
   private idCounter: number = 0;
-  private objects: {[id: string]: ObjStore} = {};
+  protected objects: {[id: string]: ObjStore} = {};
   private factory: OBJIOFactory;
 
   constructor(factory: OBJIOFactory) {
@@ -137,6 +137,9 @@ export class OBJIOLocalStore implements OBJIOStore {
     Object.keys(objMap).forEach(id => {
       const obj = objMap[id];
 
+      if (this.objects[id])
+        return;
+
       const newId = '' + this.idCounter++;
       const storeItem = this.objects[newId] = {
         data: obj.json || {},
@@ -151,10 +154,16 @@ export class OBJIOLocalStore implements OBJIOStore {
       };
     });
 
-    Object.keys(objMap).forEach(id => {
+    Object.keys(res).forEach(id => {
       const { newId, json } = res[id];
       const objClass = this.factory.findItem(this.objects[newId].classId);
-      objClass.getRelObjIDS(json, id => res[id].newId);
+      const replaceID = id => {
+        if (this.objects[id])
+          return id;
+
+        return res[id].newId;
+      };
+      objClass.getRelObjIDS(json, replaceID);
     });
 
     return Promise.resolve(res);
@@ -297,7 +306,7 @@ export class OBJIOLocalStore implements OBJIOStore {
     return Promise.resolve(res);
   }
 
-  methodInvoker(id: string, method: string, args: Object): Promise<any> {
+  invokeMethod(id: string, method: string, args: Object): Promise<any> {
     return null;
   }
 

@@ -13,15 +13,56 @@ import { OBJIOItem } from './item';
 
 export class OBJIOServerStore implements OBJIOStore {
   private objio: OBJIO;
+  private ssFactory: OBJIOFactory;
 
   static async create(ssFactory: OBJIOFactory, store: OBJIOStore): Promise<OBJIOServerStore> {
     let proxyStore = new OBJIOServerStore();
+    proxyStore.ssFactory = ssFactory;
     proxyStore.objio = await OBJIO.create(ssFactory, store);
     return proxyStore;
   }
 
-  createObjects(arr: CreateObjectsArgs): Promise<CreateResult> {
-    return null;
+  async createObjects(ids: CreateObjectsArgs): Promise<CreateResult> {
+    let objsMap: {[id: string]: OBJIOItem} = {};
+    let firstId: string;
+    Object.keys(ids).forEach(id => {
+      const item = ids[id];
+      const objClass = this.ssFactory.findItem(item.classId);
+      const obj = this.objio.getObject(id) || OBJIOItem.create(objClass);
+      objsMap[id] = obj;
+      !firstId && (firstId = id);
+    });
+
+    let tasks: Array<Promise<any>> = [];
+    Object.keys(objsMap).forEach(id => {
+      const obj = objsMap[id];
+      const store = ids[id].json;
+      const objClass = OBJIOItem.getClass(obj);
+      if (this.objio.getObject(id))
+        return;
+      const task = objClass.loadStore({ obj, store, getObject: id => objsMap[id] || this.objio.loadObject(id)});
+      if (task)
+        tasks.push(task);
+    });
+
+    await Promise.all(tasks);
+    await this.objio.createObject(objsMap[firstId]);
+
+    let res: CreateResult = {};
+    Object.keys(objsMap).forEach(id => {
+      const obj = objsMap[id];
+      res[id] = {
+        newId: obj.holder.getID(),
+        json: obj.holder.getJSON(),
+        version: obj.holder.getVersion()
+      };
+    });
+
+    return res;
+  }
+
+  getOBJIO(): OBJIO {
+    return this.objio;
   }
 
   async writeObjects(arr: Array<{id: string, json: Object}>): Promise<WriteResult> {
@@ -29,14 +70,13 @@ export class OBJIOServerStore implements OBJIOStore {
     const objsMap: {[id: string]: OBJIOItem} = {};
     objs.forEach(obj => objsMap[obj.holder.getID()] = obj);
 
-    let write: Array<Promise<any>> = [];
     arr.forEach(item => {
       const obj = objsMap[item.id];
-      OBJIOItem.loadStore({obj, store: item.json, getObject: id => this.objio.loadObject(id)});
-      write.push(obj.holder.save());
+      const objClass = OBJIOItem.getClass(obj);
+      objClass.loadStore({obj, store: item.json, getObject: id => this.objio.loadObject(id)});
+      obj.holder.save();
     });
 
-    await Promise.all(write);
     let res: WriteResult = {items: [], removed: []};
     arr.forEach(item => {
       const obj = objsMap[item.id];
@@ -74,7 +114,7 @@ export class OBJIOServerStore implements OBJIOStore {
 
     const fields = classItem.SERIALIZE();
     let tasks: Array<Promise<any>> = [];
-    Object.keys(fields).forEach(async name => {
+    Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')
         return;
 
@@ -100,7 +140,16 @@ export class OBJIOServerStore implements OBJIOStore {
     return res;
   }
 
-  methodInvoker(id: string, method: string, args: Object): Promise<any> {
-    return null;
+  async invokeMethod(id: string, methodName: string, args: Object): Promise<any> {
+    const obj = this.objio.getObject(id);
+    if (!obj)
+      throw new Error(`object ${id} not found`);
+
+    const methods = obj.holder.getMethodsToInvoke();
+    const method = methods[methodName];
+    if (!method)
+      throw new Error(`method ${methodName} not found`);
+
+    return method(args);
   }
 }

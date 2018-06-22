@@ -1,6 +1,6 @@
 {
   "name": "objio",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "",
   "main": "index.js",
   "repository": "git@github.com:xegax/objio.git",
@@ -10,6 +10,7 @@
     "dist": "tsc",
     "dev": "tsc",
     "test": "node_modules/.bin/mocha",
+    "dev-test": "npm run dev && npm run test",
     "clean": "npm run clean-index && npm run clean-src && npm run clean-test",
     "clean-index": "shx rm -rf index.d.ts index.js index.js.map",
     "clean-src": "shx rm -rf src/**/*.js src/**/*.js.map src/**/*.d.ts",

@@ -38,7 +38,7 @@ export class OBJIORemoteStore implements OBJIOStore {
     return this.req.sendJSON(`${this.root}read-objects`, {}, {id});
   }
 
-  methodInvoker(id: string, method: string, args: Object): Promise<any> {
-    return null;
+  invokeMethod(id: string, method: string, args: Object): Promise<any> {
+    return this.req.sendJSON(`${this.root}invoke-method`, {}, {id, method, args});
   }
 }

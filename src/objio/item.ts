@@ -31,34 +31,53 @@ export interface OBJIOItemClass {
   saveStore?: (obj: OBJIOItem) => SaveStoreResult;
   getRelObjIDS?: (store: Object, replaceID?: (id: string) => string) => GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
+  invokeMethod?: (obj: OBJIOItem, name: string, args: Object) => Promise<any>;
+}
+
+export interface OBJIOItemHolderOwner {
+  save(obj: OBJIOItem): Promise<any>;
+  create(obj: OBJIOItem): Promise<OBJIOItem>;
+  invoke(obj: OBJIOItem, name: string, args: Object): Promise<any>;
 }
 
 export interface InitArgs {
   id: string;
   obj: OBJIOItem;
   version: string;
-  saveImpl: (obj: OBJIOItem) => Promise<any>;
-  createObjectImpl: (obj: OBJIOItem) => Promise<OBJIOItem>;
+  owner: OBJIOItemHolderOwner;
+}
+
+export interface MethodsToInvoke {
+  [mathod: string]: (args: Object) => any;
 }
 
 export class OBJIOItemHolder extends Publisher {
   private id: string;
   private obj: OBJIOItem;
-  private saveImpl: (obj: OBJIOItem) => Promise<any>;
-  private createObjectImpl: (obj: OBJIOItem) => Promise<OBJIOItem>;
+  private owner: OBJIOItemHolderOwner;
+  private methodsToInvoke: MethodsToInvoke = {};
 
   private srvVersion: string = '';
 
   constructor(args?: InitArgs) {
     super();
-    if (!args)
-      return;
+    if (args)
+      OBJIOItemHolder.initialize(this, args);
+  }
 
-    this.id = args.id;
-    this.obj = args.obj;
-    this.srvVersion = args.version;
-    this.saveImpl = args.saveImpl;
-    this.createObjectImpl = args.createObjectImpl;
+  static initialize(holder: OBJIOItemHolder, args: InitArgs) {
+    holder.id = args.id;
+    holder.obj = args.obj;
+    holder.srvVersion = args.version;
+    holder.owner = args.owner;
+  }
+
+  setMethodsToInvoke(methods: MethodsToInvoke) {
+    this.methodsToInvoke = methods;
+  }
+
+  getMethodsToInvoke(): MethodsToInvoke {
+    return this.methodsToInvoke;
   }
 
   getID(): string {
@@ -66,17 +85,17 @@ export class OBJIOItemHolder extends Publisher {
   }
 
   save(): Promise<any> {
-    if (!this.saveImpl)
-      return Promise.reject('saveImpl not defined');
+    if (!this.owner)
+      return Promise.reject('owner not defined');
 
-    return this.saveImpl(this.obj);
+    return this.owner.save(this.obj);
   }
 
   createObject<T extends OBJIOItem>(obj: T): Promise<T> {
-    if (!this.createObjectImpl)
-      return Promise.reject<T>('createObject not defined');
+    if (!this.owner)
+      return Promise.reject<T>('owner not defined');
 
-    return this.createObjectImpl(obj) as Promise<T>;
+    return this.owner.create(obj) as Promise<T>;
   }
 
   getJSON(): { [key: string]: number | string | Array<number | string> } {
@@ -111,6 +130,13 @@ export class OBJIOItemHolder extends Publisher {
   getVersion(): string {
     return this.srvVersion;
   }
+
+  invokeMethod(name: string, args: Object) {
+    if (!this.owner)
+      return Promise.reject('owner not defined');
+
+    return this.owner.invoke(this.obj, name, args);
+  }
 }
 
 let localIdCounter = 0;
@@ -118,8 +144,7 @@ export class OBJIOItem {
   holder: OBJIOItemHolder = new OBJIOItemHolder({
     id: 'loc-' + (localIdCounter++),
     obj: this,
-    saveImpl: null,
-    createObjectImpl: null,
+    owner: null,
     version: ''
   });
 
@@ -213,24 +238,8 @@ export class OBJIOItem {
       return this as any;
     return obj.constructor as any as OBJIOItemClass;
   }
+
+  static invokeMethod(obj: OBJIOItem, name: string, args: Object): Promise<any> {
+    return obj.holder.invokeMethod(name, args);
+  }
 }
-
-/*export function findAllObjFields(root: OBJIOItem, lst?: Array<OBJIOItem>): Array<OBJIOItem> {
-  if (!root)
-    return;
-
-  lst = lst || Array<OBJIOItem>();
-
-  const classItem = root.constructor as any as OBJIOItemClass;
-  const fields = classItem.SERIALIZE();
-  Object.keys(fields).forEach(name => {
-    const type = fields[name].type;
-    if (type == 'object') {
-      findAllObjFields(root[name], lst);
-      lst.push(root[name]);
-    }
-  });
-
-  return lst;
-}
-*/

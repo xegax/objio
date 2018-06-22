@@ -8,13 +8,25 @@ class Dummy extends OBJIOItem {
 }
 
 class DummyCont extends OBJIOItem {
+  counter: number;
   child = new Dummy();
   child2 = new Dummy();
+  constructor() {
+    super();
+
+    this.holder.setMethodsToInvoke({
+      increase: () => {
+        this.counter++;
+        this.holder.save();
+      }
+    });
+  }
 
   static TYPE_ID = 'DummyCont';
   static SERIALIZE = () => ({
     'child': {type: 'object'},
-    'child2': {type: 'object'}
+    'child2': {type: 'object'},
+    'counter': {type: 'number'}
   });
 }
 
@@ -36,4 +48,6 @@ describe('OBJIOItem', () => {
       'child2': 'id2'
     })).eqls(['id1', 'id2']);
   });
+
+  it('OBJItem.invokeMethod', () => {});
 });

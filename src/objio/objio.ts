@@ -65,7 +65,7 @@ class SavingQueue {
   }
 
   async saveImpl() {
-    let queue = this.queue;
+    const queue = this.queue;
     this.queue = [];
 
     console.log('saving started', queue.length);
@@ -83,13 +83,13 @@ class SavingQueue {
       holder.updateVersion(obj.version);
     });
 
-    this.objio.notifyOnSave();
+    this.objio.notifyOnSave(queue);
     console.log('saving complete');
   }
 }
 
 export interface Observer {
-  onSave?: () => void;
+  onSave?: (saved: Array<OBJIOItem>) => void;
 }
 
 export class OBJIO {
@@ -99,11 +99,11 @@ export class OBJIO {
   private savingQueue: SavingQueue;
   private observers: Array<Observer> = Array<Observer>();
 
-  static create(factory: OBJIOFactory, store: OBJIOStore): Promise<OBJIO> {
+  static create(factory: OBJIOFactory, store: OBJIOStore, saveTime?: number): Promise<OBJIO> {
     let obj = new OBJIO();
     obj.store = new OBJIOStoreBase(store);
     obj.factory = factory;
-    obj.savingQueue = new SavingQueue(100, store, obj);
+    obj.savingQueue = new SavingQueue(saveTime || 100, store, obj);
 
     return Promise.resolve(obj);
   }
@@ -117,10 +117,10 @@ export class OBJIO {
     return this.store.getWrites();
   }
 
-  notifyOnSave() {
+  notifyOnSave(saved: Array<OBJIOItem>) {
     this.observers.forEach(item => {
       try {
-        item.onSave && item.onSave();
+        item.onSave && item.onSave(saved);
       } catch (e) {
         console.log(e);
       }
@@ -128,12 +128,15 @@ export class OBJIO {
   }
 
   private initNewObject(obj: OBJIOItem, objId: string, version: string) {
-    obj.holder = new OBJIOItemHolder({
+    OBJIOItemHolder.initialize(obj.holder, {
       obj,
       id: objId,
       version,
-      saveImpl: this.saveImpl,
-      createObjectImpl: obj => this.createObject(obj)
+      owner: {
+        save: obj => this.saveImpl(obj),
+        create: obj => this.createObject(obj),
+        invoke: (obj, name, args) => this.invokeMethod(obj, name, args)
+      }
     });
     this.objectMap[objId] = obj;
   }
@@ -148,6 +151,10 @@ export class OBJIO {
 
   getObject<T extends OBJIOItem>(id: string): T {
     return this.objectMap[id] as T;
+  }
+
+  invokeMethod(obj: OBJIOItem, name: string, args: Object): Promise<any> {
+    return this.store.invokeMethod(obj.holder.getID(), name, args);
   }
 
   async createObject<T>(objOrClass: OBJIOItem | string): Promise<T> {
