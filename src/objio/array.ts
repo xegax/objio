@@ -52,11 +52,11 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
     'arr': { type: 'json' }
   });
 
-  static loadStore(args: LoadStoreArgs): LoadStoreResult {
+  static async loadStore(args: LoadStoreArgs) {
     const obj = args.obj as OBJIOArray;
     const store = args.store as { arr: string };
     const arr = JSON.parse(store.arr) as Array<string>;
-    obj.arr = arr.map(id => args.getObject(id) as OBJIOItem);
+    obj.arr = await Promise.all(arr.map(id => args.getObject(id) as OBJIOItem));
   }
 
   static saveStore(obj: OBJIOArray): SaveStoreResult {

@@ -70,12 +70,18 @@ export class OBJIOServerStore implements OBJIOStore {
     const objsMap: {[id: string]: OBJIOItem} = {};
     objs.forEach(obj => objsMap[obj.holder.getID()] = obj);
 
-    arr.forEach(item => {
+    let tasks = Array<Promise<any>>();
+    arr.forEach(item =>  {
       const obj = objsMap[item.id];
       const objClass = OBJIOItem.getClass(obj);
-      objClass.loadStore({obj, store: item.json, getObject: id => this.objio.loadObject(id)});
+      const task = objClass.loadStore({obj, store: item.json, getObject: id => this.objio.loadObject(id)});
+      if (task instanceof Promise)
+        tasks.push(task);
+
       obj.holder.save();
     });
+
+    await Promise.all(tasks);
 
     let res: WriteResult = {items: [], removed: []};
     arr.forEach(item => {
