@@ -19,7 +19,7 @@ function getMap(arr: Array<OBJIOItem>) {
 }
 
 describe('OBJIOArray', () => {
-  it('static functions', () => {
+  it('static functions', async () => {
     const obj1 = new OBJIOItem();
     const obj2 = new OBJIOItem();
     const objsArr = [obj1, obj2];
@@ -35,15 +35,15 @@ describe('OBJIOArray', () => {
       store,
       getObject: id => map[id]
     });
+    expect(res).instanceof(Promise, 'must be a promise');
 
+    await res;
     expect(OBJIOArray.saveStore(obj)).eql(store, 'check saveStore');
-
-    expect(res).to.be.a('undefined');
 
     expect(obj.getLength()).eq(objsArr.length);
 
-    expect([ obj.get(0), obj.get(1) ]).to.eql(objsArr, 'All objects must be equal');
+    expect([ obj.get(0), obj.get(1) ]).eql(objsArr, 'All objects must be equal');
 
-    expect(OBJIOArray.getRelObjIDS(store)).to.eql( getIDS(objsArr), 'check getRelObjIDS');
+    expect(OBJIOArray.getRelObjIDS(store)).eql( getIDS(objsArr), 'check getRelObjIDS');
   });
 });

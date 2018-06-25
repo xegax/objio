@@ -70,7 +70,11 @@ describe('OBJIOServerStore', () => {
 
     const res: ReadResult = await serverStore.readObject('id2');
     expect(Object.keys(res)).eqls(['id2']);
-    expect(res['id2']).eqls({json: arr['id2'].data, classId: arr['id2'].classId, version: arr['id2'].version});
+    expect(res['id2']).eqls({
+      json: arr['id2'].data,
+      classId: arr['id2'].classId,
+      version: arr['id2'].version
+    }, 'check id2 object');
 
     const obj: OBJIOArray<TestObj> = serverStore.getOBJIO().getObject('id2');
     expect(obj).not.eq(null);

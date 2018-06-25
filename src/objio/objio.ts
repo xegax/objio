@@ -196,7 +196,7 @@ export class OBJIO {
   async loadObject<T extends OBJIOItem>(id: string): Promise<T> {
     const objsMap = await this.store.readObjects(id);
 
-    const loadObjectImpl = (objId: string) => {
+    const loadObjectImpl = async (objId: string) => {
       const store = objsMap[objId];
       const objClass = this.factory.findItem(store.classId);
       let newObj: OBJIOItem;
@@ -206,7 +206,7 @@ export class OBJIO {
         this.initNewObject(newObj, objId, store.version);
       }
 
-      objClass.loadStore({
+      await objClass.loadStore({
         obj: newObj,
         store: store.json,
         getObject: loadObjectImpl
@@ -216,7 +216,7 @@ export class OBJIO {
       return newObj;
     };
 
-    return loadObjectImpl(id) as T;
+    return await loadObjectImpl(id) as T;
   }
 
   private updateTasks = new SerialPromise();
