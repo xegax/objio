@@ -50,7 +50,12 @@ export class OBJIOServerStore implements OBJIOStore {
       const objClass = OBJIOItem.getClass(obj);
       if (this.objio.getObject(id))
         return;
-      const task = objClass.loadStore({ obj, store, getObject: id => objsMap[id] || this.objio.loadObject(id)});
+      const task = objClass.loadStore({
+        tags: this.tags,
+        obj,
+        store,
+        getObject: id => objsMap[id] || this.objio.loadObject(id)
+      });
       if (task)
         tasks.push(task);
     });
@@ -84,7 +89,12 @@ export class OBJIOServerStore implements OBJIOStore {
     arr.forEach(item =>  {
       const obj = objsMap[item.id];
       const objClass = OBJIOItem.getClass(obj);
-      const task = objClass.loadStore({obj, store: item.json, getObject: id => this.objio.loadObject(id)});
+      const task = objClass.loadStore({
+        tags: this.tags,
+        obj,
+        store: item.json,
+        getObject: id => this.objio.loadObject(id)
+      });
       if (task instanceof Promise)
         tasks.push(task);
 
@@ -98,7 +108,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[item.id];
       res.items.push({
         id: item.id,
-        json: obj.holder.getJSON(),
+        json: obj.holder.getJSON(this.tags),
         version: obj.holder.getVersion()
       });
     });
@@ -118,13 +128,13 @@ export class OBJIOServerStore implements OBJIOStore {
     res[id] = {
       classId: classItem.TYPE_ID,
       version: obj.holder.getVersion(),
-      json: obj.holder.getJSON()
+      json: obj.holder.getJSON(this.tags)
     };
 
     if (!deep)
       return;
 
-    const json = obj.holder.getJSON();
+    const json = obj.holder.getJSON(this.tags);
     if (classItem.getRelObjIDS)
       await Promise.all(classItem.getRelObjIDS(json).map(id => this.readObjectResult(id, res, deep)));
 
