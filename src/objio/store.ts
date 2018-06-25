@@ -1,5 +1,6 @@
 import { OBJIOFactory} from './factory';
 import { cloneDeep } from 'lodash';
+import { Tags, SERIALIZE } from './item';
 
 export interface WriteResult {
   items: Array<{ id: string, json: Object, version: string }>;
@@ -104,9 +105,11 @@ export class OBJIOLocalStore implements OBJIOStore {
   private idCounter: number = 0;
   protected objects: {[id: string]: ObjStore} = {};
   private factory: OBJIOFactory;
+  private tags: Tags = new Set(); // field tags
 
-  constructor(factory: OBJIOFactory) {
+  constructor(factory: OBJIOFactory, tags?: Tags) {
     this.factory = factory;
+    this.tags = tags || this.tags;
   }
 
   loadAll(obj: StoreData) {
@@ -281,7 +284,7 @@ export class OBJIOLocalStore implements OBJIOStore {
     if (classItem.getRelObjIDS)
       classItem.getRelObjIDS(objStore.data).forEach(id => this.readObjectResult(id, res, deep));
 
-    const fields = classItem.SERIALIZE();
+    const fields = SERIALIZE(classItem, this.tags);
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')
         return;

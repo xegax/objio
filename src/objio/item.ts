@@ -1,14 +1,38 @@
 import { Publisher } from '../common/publisher';
 
+export type Tags = Set<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
 export type Field = {
   type: Type;
   classId?: string;
+  tags?: Tags;
 };
 
-export type SERIALIZER = () => {
-  [key: string]: Field
-};
+export interface FieldsMap {
+  [key: string]: Field;
+}
+
+export type SERIALIZER = () => FieldsMap;
+
+export function SERIALIZE(objClass: OBJIOItemClass, tags?: Tags): FieldsMap {
+  const fields = objClass.SERIALIZE();
+  if (!tags || tags.size == 0)
+    return fields;
+
+  const res: FieldsMap = {};
+  Object.keys(fields).forEach(name => {
+    const field = fields[name];
+    for (let key in tags) {
+      if (!fields.tags || !field.tags.has(key))
+        continue;
+
+      res[name] = field;
+      break;
+    }
+  });
+
+  return res;
+}
 
 interface OBJItemConstructor extends ObjectConstructor {
   new(): OBJIOItem;
