@@ -53,7 +53,7 @@ describe('OBJIOServerStore', () => {
   let objio: OBJIO;
 
   it('OBJIOServerStore.create', async () => {
-    serverStore = await OBJIOServerStore.create(factory, store);
+    serverStore = await OBJIOServerStore.create({factory, store});
     expect(serverStore).not.eq(null);
     expect(serverStore).instanceof(OBJIOServerStore);
 

@@ -7,18 +7,28 @@ import {
 } from './store';
 import { OBJIO } from './objio';
 import { OBJIOFactory } from './factory';
-import { OBJIOItem } from './item';
+import { OBJIOItem, SERIALIZE, Tags } from './item';
 
 // objio client -> remote-store -> objio server -> db-store
 
+export interface ServerStoreArgs {
+  factory: OBJIOFactory;  // server side factory
+  store: OBJIOStore;      // server side store
+  saveTime?: number;
+  tags?: Tags;
+};
+
+// the store send and receive client json data 
 export class OBJIOServerStore implements OBJIOStore {
   private objio: OBJIO;
-  private ssFactory: OBJIOFactory;
+  private factory: OBJIOFactory;
+  private tags: Tags = new Set<string>();
 
-  static async create(ssFactory: OBJIOFactory, store: OBJIOStore, saveTime?: number): Promise<OBJIOServerStore> {
+  static async create(args: ServerStoreArgs): Promise<OBJIOServerStore> {
     let proxyStore = new OBJIOServerStore();
-    proxyStore.ssFactory = ssFactory;
-    proxyStore.objio = await OBJIO.create(ssFactory, store, saveTime || 1);
+    proxyStore.factory = args.factory;
+    proxyStore.objio = await OBJIO.create(args.factory, args.store, args.saveTime || 1);
+    proxyStore.tags = args.tags || proxyStore.tags;
     return proxyStore;
   }
 
@@ -27,7 +37,7 @@ export class OBJIOServerStore implements OBJIOStore {
     let firstId: string;
     Object.keys(ids).forEach(id => {
       const item = ids[id];
-      const objClass = this.ssFactory.findItem(item.classId);
+      const objClass = this.factory.findItem(item.classId);
       const obj = this.objio.getObject(id) || OBJIOItem.create(objClass);
       objsMap[id] = obj;
       !firstId && (firstId = id);
@@ -118,7 +128,7 @@ export class OBJIOServerStore implements OBJIOStore {
     if (classItem.getRelObjIDS)
       await Promise.all(classItem.getRelObjIDS(json).map(id => this.readObjectResult(id, res, deep)));
 
-    const fields = classItem.SERIALIZE();
+    const fields = SERIALIZE(classItem, this.tags);
     let tasks: Array<Promise<any>> = [];
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')

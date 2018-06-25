@@ -39,6 +39,7 @@ interface OBJItemConstructor extends ObjectConstructor {
 }
 
 export interface LoadStoreArgs {
+  tags?: Tags;
   obj: OBJIOItem;
   store: Object;
   getObject: (id: string) => Promise<OBJIOItem> | OBJIOItem;
@@ -122,13 +123,13 @@ export class OBJIOItemHolder extends Publisher {
     return this.owner.create(obj) as Promise<T>;
   }
 
-  getJSON(): { [key: string]: number | string | Array<number | string> } {
+  getJSON(tags?: Tags): { [key: string]: number | string | Array<number | string> } {
     const objClass: OBJIOItemClass = OBJIOItem.getClass(this.obj);
     if (objClass.saveStore) {
       return objClass.saveStore(this.obj);
     }
 
-    let field = objClass.SERIALIZE();
+    let field = SERIALIZE(objClass, tags);
     let json = {};
     Object.keys(field).forEach(name => {
       const value = this.obj[name];
@@ -177,7 +178,7 @@ export class OBJIOItem {
   }
 
   static loadStore(args: LoadStoreArgs): LoadStoreResult {
-    const fields = this.getClass().SERIALIZE();
+    const fields = SERIALIZE(this.getClass(), args.tags);
     const names = Object.keys(fields);
     let promises = Array<Promise<any>>();
     for (let n = 0; n < names.length; n++) {

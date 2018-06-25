@@ -4,7 +4,6 @@ import {
   SERIALIZER,
   OBJIOItemHolder,
   SaveStoreResult,
-  LoadStoreResult,
   GetRelObjIDSResult
 } from './item';
 
