@@ -22,7 +22,7 @@ export interface ServerStoreArgs {
 export class OBJIOServerStore implements OBJIOStore {
   private objio: OBJIO;
   private factory: OBJIOFactory;
-  private tags: Tags = new Set<string>();
+  private tags: Tags = [];
 
   static async create(args: ServerStoreArgs): Promise<OBJIOServerStore> {
     let proxyStore = new OBJIOServerStore();

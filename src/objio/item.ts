@@ -1,6 +1,6 @@
 import { Publisher } from '../common/publisher';
 
-export type Tags = Set<string>;
+export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
 export type Field = {
   type: Type;
@@ -16,14 +16,14 @@ export type SERIALIZER = () => FieldsMap;
 
 export function SERIALIZE(objClass: OBJIOItemClass, tags?: Tags): FieldsMap {
   const fields = objClass.SERIALIZE();
-  if (!tags || tags.size == 0)
+  if (!tags || tags.length == 0)
     return fields;
 
   const res: FieldsMap = {};
   Object.keys(fields).forEach(name => {
     const field = fields[name];
-    for (let tag in tags) {
-      if (field.tags && !field.tags.has(tag))
+    for (let tag of tags) {
+      if (field.tags && !field.tags.some(t => t == tag))
         continue;
 
       res[name] = field;

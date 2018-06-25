@@ -105,7 +105,7 @@ export class OBJIOLocalStore implements OBJIOStore {
   private idCounter: number = 0;
   protected objects: {[id: string]: ObjStore} = {};
   private factory: OBJIOFactory;
-  private tags: Tags = new Set(); // field tags
+  private tags: Tags = []; // field tags
 
   constructor(factory: OBJIOFactory, tags?: Tags) {
     this.factory = factory;
