@@ -5,7 +5,7 @@ export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
 export type Field = {
   type: Type;
   classId?: string;
-  tags?: Tags;
+  tags?: Tags;      // if not defined it is suitable for all tags
 };
 
 export interface FieldsMap {
@@ -22,8 +22,8 @@ export function SERIALIZE(objClass: OBJIOItemClass, tags?: Tags): FieldsMap {
   const res: FieldsMap = {};
   Object.keys(fields).forEach(name => {
     const field = fields[name];
-    for (let key in tags) {
-      if (!fields.tags || !field.tags.has(key))
+    for (let tag in tags) {
+      if (field.tags && !field.tags.has(tag))
         continue;
 
       res[name] = field;
