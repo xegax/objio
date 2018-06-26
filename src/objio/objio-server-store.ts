@@ -7,7 +7,7 @@ import {
 } from './store';
 import { OBJIO } from './objio';
 import { OBJIOFactory } from './factory';
-import { OBJIOItem, SERIALIZE, Tags } from './item';
+import { OBJIOItem, SERIALIZE, Tags, FieldFilter } from './item';
 
 // objio client -> remote-store -> objio server -> db-store
 
@@ -15,20 +15,20 @@ export interface ServerStoreArgs {
   factory: OBJIOFactory;  // server side factory
   store: OBJIOStore;      // server side store
   saveTime?: number;
-  tags?: Tags;
+  fieldFilter?: FieldFilter;
 };
 
 // the store send and receive client json data 
 export class OBJIOServerStore implements OBJIOStore {
   private objio: OBJIO;
   private factory: OBJIOFactory;
-  private tags: Tags = [];
+  private fieldFilter?: FieldFilter;
 
   static async create(args: ServerStoreArgs): Promise<OBJIOServerStore> {
     let proxyStore = new OBJIOServerStore();
     proxyStore.factory = args.factory;
     proxyStore.objio = await OBJIO.create(args.factory, args.store, args.saveTime || 1);
-    proxyStore.tags = args.tags || proxyStore.tags;
+    proxyStore.fieldFilter = proxyStore.fieldFilter;
     return proxyStore;
   }
 
@@ -51,7 +51,7 @@ export class OBJIOServerStore implements OBJIOStore {
       if (this.objio.getObject(id))
         return;
       const task = objClass.loadStore({
-        tags: this.tags,
+        fieldFilter: this.fieldFilter,
         obj,
         store,
         getObject: id => objsMap[id] || this.objio.loadObject(id)
@@ -90,7 +90,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[item.id];
       const objClass = OBJIOItem.getClass(obj);
       const task = objClass.loadStore({
-        tags: this.tags,
+        fieldFilter: this.fieldFilter,
         obj,
         store: item.json,
         getObject: id => this.objio.loadObject(id)
@@ -108,7 +108,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[item.id];
       res.items.push({
         id: item.id,
-        json: obj.holder.getJSON(this.tags),
+        json: obj.holder.getJSON(this.fieldFilter),
         version: obj.holder.getVersion()
       });
     });
@@ -128,17 +128,17 @@ export class OBJIOServerStore implements OBJIOStore {
     res[id] = {
       classId: classItem.TYPE_ID,
       version: obj.holder.getVersion(),
-      json: obj.holder.getJSON(this.tags)
+      json: obj.holder.getJSON(this.fieldFilter)
     };
 
     if (!deep)
       return;
 
-    const json = obj.holder.getJSON(this.tags);
+    const json = obj.holder.getJSON(this.fieldFilter);
     if (classItem.getRelObjIDS)
       await Promise.all(classItem.getRelObjIDS(json).map(id => this.readObjectResult(id, res, deep)));
 
-    const fields = SERIALIZE(classItem, this.tags);
+    const fields = SERIALIZE(classItem, this.fieldFilter);
     let tasks: Array<Promise<any>> = [];
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')

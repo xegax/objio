@@ -6,26 +6,43 @@ import {
   SERIALIZER,
   OBJIOArray,
   ReadResult,
-  OBJIO
+  OBJIO,
+  Field,
+  EXTEND
 } from '../index';
 import { expect } from 'chai';
 
 class TestObj extends OBJIOItem {
   img: string = '';
+  tmp: string = '??';
+
   constructor(img?: string) {
     super();
     this.img = img || this.img;
   }
 
   static TYPE_ID: string = 'TestObj';
-  static SERIALIZE: SERIALIZER = () => ({
+  static SERIALIZE: SERIALIZER<TestObj> = () => ({
     'img': { type: 'string' }
+  });
+}
+
+class SrTestObj extends TestObj {
+  internal: string = 'testObj internals';
+
+  static TYPE_ID: string = 'SrTestObj';
+  static SERIALIZE: SERIALIZER<SrTestObj> = () => ({
+    ...TestObj.SERIALIZE(),
+    ...EXTEND<SrTestObj>({
+      'internal': { type: 'string' }
+    }, { tags: ['sr'] })
   });
 }
 
 class DummyCont extends OBJIOItem {
   name: string = 'unnamed';
   arr: OBJIOArray<TestObj> = new OBJIOArray<TestObj>();
+  internal: string = 'something internal';
 
   constructor(name?: string, items?: Array<TestObj>) {
     super();
@@ -36,9 +53,10 @@ class DummyCont extends OBJIOItem {
   }
 
   static TYPE_ID: string = 'DummyCont';
-  static SERIALIZE: SERIALIZER = () => ({
+  static SERIALIZE: SERIALIZER<DummyCont> = () => ({
     'name': { type: 'string' },
-    'arr': { type: 'object' }
+    'arr': { type: 'object' },
+    'internal': { type: 'string', tags: ['sr'] }
   });
 }
 
@@ -46,6 +64,7 @@ describe('OBJIOServerStore', () => {
   let factory: OBJIOFactory = new OBJIOFactory();
   factory.registerItem(DummyCont);
   factory.registerItem(TestObj);
+  factory.registerItem(SrTestObj);
   factory.registerItem(OBJIOArray);
 
   let store: OBJIOLocalStore = new OBJIOLocalStore(factory);
@@ -107,6 +126,34 @@ describe('OBJIOServerStore', () => {
     expect(testObj.img).eq(arr['id1'].data.img);
   });
 
+  it('OBJIOServerStore.readObject without "sr" tag', async () => {
+    serverStore['fieldFilter'] = (f: Field) => {
+      return !f.tags || !f.tags.length || f.tags.indexOf('sr') == -1;
+    };
+
+    const id1 = {
+      data: {img: 'root2.png', 'internal': '???'},
+      classId: 'SrTestObj',
+      version: '1'
+    };
+    store.setObjectData('id3', id1);
+
+    const res: ReadResult = await serverStore.readObject('id3');
+    expect(Object.keys(res)).eqls(['id3']);
+    expect(res['id3']).eqls({
+      json: { img: id1.data.img },
+      classId: id1.classId,
+      version: id1.version
+    });
+
+    const obj: SrTestObj = serverStore.getOBJIO().getObject('id3');
+    expect(obj).not.eq(null);
+    expect(obj).instanceof(SrTestObj);
+    expect(obj.img).eq(id1.data.img);
+
+    serverStore['fieldFilter'] = null;
+  });
+
   it('OBJIOServerStore.writeObjects', async () => {
     const arr = {
       'id3': {data: {img: 'root3.png'}, classId: 'TestObj', version: '1'},
@@ -131,7 +178,8 @@ describe('OBJIOServerStore', () => {
     expect(store.getObjectData(newIds[0])).eqls({
       data: {
         name: '???',
-        arr: obj.arr.holder.getID()
+        arr: obj.arr.holder.getID(),
+        internal: 'something internal'
       },
       version: obj.holder.getVersion(),
       classId: 'DummyCont'
@@ -149,7 +197,8 @@ describe('OBJIOServerStore', () => {
     expect(store.getObjectData(newIds[0])).eqls({
       data: {
         name: '+++',
-        arr: obj.arr.holder.getID()
+        arr: obj.arr.holder.getID(),
+        internal: 'something internal'
       },
       version: obj.holder.getVersion(),
       classId: 'DummyCont'

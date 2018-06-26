@@ -8,27 +8,33 @@ export type Field = {
   tags?: Tags;      // if not defined it is suitable for all tags
 };
 
-export interface FieldsMap {
-  [key: string]: Field;
+export type FieldsMap<T = any> = {
+  [key in keyof T]?: Field;
 }
 
-export type SERIALIZER = () => FieldsMap;
+export type SERIALIZER<T = any> = () => FieldsMap<T>;
 
-export function SERIALIZE(objClass: OBJIOItemClass, tags?: Tags): FieldsMap {
+export type FieldFilter = (field: Field) => boolean;
+
+export function SERIALIZE(objClass: OBJIOItemClass, includeFilter?: FieldFilter): FieldsMap {
   const fields = objClass.SERIALIZE();
-  if (!tags || tags.length == 0)
+  if (!includeFilter)
     return fields;
 
   const res: FieldsMap = {};
   Object.keys(fields).forEach(name => {
     const field = fields[name];
-    for (let tag of tags) {
-      if (field.tags && !field.tags.some(t => t == tag))
-        continue;
-
+    if (includeFilter(field))
       res[name] = field;
-      break;
-    }
+  });
+
+  return res;
+}
+
+export function EXTEND<T = any>(fields: FieldsMap<T>, add: Partial<Field>): FieldsMap<T> {
+  const res: FieldsMap<T> = {};
+  Object.keys(fields).forEach(name => {
+    res[name] = {...fields[name], ...add};
   });
 
   return res;
@@ -39,7 +45,7 @@ interface OBJItemConstructor extends ObjectConstructor {
 }
 
 export interface LoadStoreArgs {
-  tags?: Tags;
+  fieldFilter?: FieldFilter;
   obj: OBJIOItem;
   store: Object;
   getObject: (id: string) => Promise<OBJIOItem> | OBJIOItem;
@@ -123,13 +129,13 @@ export class OBJIOItemHolder extends Publisher {
     return this.owner.create(obj) as Promise<T>;
   }
 
-  getJSON(tags?: Tags): { [key: string]: number | string | Array<number | string> } {
+  getJSON(fieldFilter?: FieldFilter): { [key: string]: number | string | Array<number | string> } {
     const objClass: OBJIOItemClass = OBJIOItem.getClass(this.obj);
     if (objClass.saveStore) {
       return objClass.saveStore(this.obj);
     }
 
-    let field = SERIALIZE(objClass, tags);
+    let field = SERIALIZE(objClass, fieldFilter);
     let json = {};
     Object.keys(field).forEach(name => {
       const value = this.obj[name];
@@ -178,7 +184,7 @@ export class OBJIOItem {
   }
 
   static loadStore(args: LoadStoreArgs): LoadStoreResult {
-    const fields = SERIALIZE(this.getClass(), args.tags);
+    const fields = SERIALIZE(this.getClass(), args.fieldFilter);
     const names = Object.keys(fields);
     let promises = Array<Promise<any>>();
     for (let n = 0; n < names.length; n++) {

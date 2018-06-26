@@ -1,4 +1,4 @@
-import { OBJIOItem } from '../src/objio/item';
+import { OBJIOItem, SERIALIZER } from '../index';
 import { expect } from 'chai';
 
 class Dummy extends OBJIOItem {
@@ -11,6 +11,7 @@ class DummyCont extends OBJIOItem {
   counter: number;
   child = new Dummy();
   child2 = new Dummy();
+
   constructor() {
     super();
 
@@ -23,7 +24,7 @@ class DummyCont extends OBJIOItem {
   }
 
   static TYPE_ID = 'DummyCont';
-  static SERIALIZE = () => ({
+  static SERIALIZE: SERIALIZER<DummyCont> = () => ({
     'child': {type: 'object'},
     'child2': {type: 'object'},
     'counter': {type: 'number'}

@@ -1,6 +1,6 @@
 import { OBJIOFactory} from './factory';
 import { cloneDeep } from 'lodash';
-import { Tags, SERIALIZE } from './item';
+import { Tags, SERIALIZE, FieldFilter } from './item';
 
 export interface WriteResult {
   items: Array<{ id: string, json: Object, version: string }>;
@@ -105,11 +105,11 @@ export class OBJIOLocalStore implements OBJIOStore {
   private idCounter: number = 0;
   protected objects: {[id: string]: ObjStore} = {};
   private factory: OBJIOFactory;
-  private tags: Tags = []; // field tags
+  private fieldFilter: FieldFilter; // filters for incoming and outcoming fields
 
-  constructor(factory: OBJIOFactory, tags?: Tags) {
+  constructor(factory: OBJIOFactory, fieldFilter?: FieldFilter) {
     this.factory = factory;
-    this.tags = tags || this.tags;
+    this.fieldFilter = fieldFilter;
   }
 
   loadAll(obj: StoreData) {
@@ -284,7 +284,7 @@ export class OBJIOLocalStore implements OBJIOStore {
     if (classItem.getRelObjIDS)
       classItem.getRelObjIDS(objStore.data).forEach(id => this.readObjectResult(id, res, deep));
 
-    const fields = SERIALIZE(classItem, this.tags);
+    const fields = SERIALIZE(classItem, this.fieldFilter);
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')
         return;
