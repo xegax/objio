@@ -13,6 +13,8 @@ import { existsSync, lstatSync } from 'fs';
 export interface ServerArgs {
   prjsDir: string;
   factory: OBJIOFactory;
+  port?: number;
+  baseUrl?: string;
 }
 
 function msToMin(ms: number): number {
@@ -164,7 +166,7 @@ interface Project {
 }
 
 interface PrjData {
-  prj: string;
+  prj?: string;
 }
 
 let deferredHandler: Array<DefferredItem> = [];
@@ -175,11 +177,12 @@ const flushDeffer = () => {
 
 const prjMap: {[id: string]: Project} = {};
 async function getPrj(data: PrjData, factory: OBJIOFactory, rootDir: string): Promise<Project> {
-  let prj = prjMap[data.prj];
+  const prjID = data.prj || 'main';
+  let prj = prjMap[prjID];
   if (prj)
     return prj;
 
-  const path = `${rootDir}/${data.prj}`;
+  const path = [rootDir, prjID].join('/');
   if (existsSync(path)) {
     const prj: Project = prjMap[data.prj] = {
       store: await OBJIOServerStore.create({
@@ -224,10 +227,17 @@ function getAndCheckPrjsDir(prjsDir: string): string {
   return prjsDir;
 }
 
-export async function createOBJIOServer(args: ServerArgs) {
+export interface ServerCreateResult {
+  store: OBJIOServerStore;
+}
+
+export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateResult> {
   const prjsDir = getAndCheckPrjsDir(args.prjsDir);
 
-  const srv = new RestrictionPolicy(createServer({port: 8088, baseUrl: '/handler/objio/'}));
+  const srv = new RestrictionPolicy(createServer({
+    port: args.port || 8088,
+    baseUrl: args.baseUrl || '/handler/objio/'
+  }));
 
   srv.addJsonHandler<PrjData, CreateObjectsArgs>('write', 'create-object', async (params) => {
     const { store } = await getPrj(params.get, args.factory, prjsDir);
@@ -296,4 +306,7 @@ export async function createOBJIOServer(args: ServerArgs) {
     const { watcher } = await getPrj(params.get, args.factory, prjsDir);
     params.done(watcher.getObjects());
   });
+
+  const { store } = await getPrj({}, args.factory, prjsDir);
+  return { store };
 }
