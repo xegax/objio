@@ -210,7 +210,7 @@ export class OBJIOItem {
         }
       } else if (field.type == 'json' && typeof valueOrID == 'string') {
         args.obj[ name ] = JSON.parse(valueOrID);
-      } else {
+      } else if (valueOrID != null) {
         args.obj[ name ] = valueOrID;
       }
     }

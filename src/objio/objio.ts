@@ -229,8 +229,9 @@ export class OBJIO {
     return this.updateTasks.append(() => this.updateObjectsImpl(objs));
   }
 
-  private async updateObjectsImpl(objs: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
-    objs = objs.filter(item => {
+  private async updateObjectsImpl(versions: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
+    console.log('updateObjects before filter', versions);
+    const objs = versions.filter(item => {
       const obj = this.objectMap[item.id];
       return obj == null || obj.getHolder().getVersion() != item.version;
     });
@@ -251,9 +252,9 @@ export class OBJIO {
       if (extraObjs.length)
         await Promise.all(extraObjs.map(id => this.loadObject(id)));
 
-      objClass.loadStore({
+      await objClass.loadStore({
         obj,
-        getObject: id => this.loadObject(id),
+        getObject: id => this.objectMap[id] || this.loadObject(id),
         store: json
       });
       obj.getHolder().updateVersion(version);

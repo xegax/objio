@@ -22,13 +22,13 @@ export interface ServerStoreArgs {
 export class OBJIOServerStore implements OBJIOStore {
   private objio: OBJIO;
   private factory: OBJIOFactory;
-  private fieldFilter?: FieldFilter;
+  private includeFilter?: FieldFilter;
 
   static async create(args: ServerStoreArgs): Promise<OBJIOServerStore> {
     let proxyStore = new OBJIOServerStore();
     proxyStore.factory = args.factory;
     proxyStore.objio = await OBJIO.create(args.factory, args.store, args.saveTime || 1);
-    proxyStore.fieldFilter = proxyStore.fieldFilter;
+    proxyStore.includeFilter = args.includeFilter;
     return proxyStore;
   }
 
@@ -51,7 +51,6 @@ export class OBJIOServerStore implements OBJIOStore {
       if (this.objio.getObject(id))
         return;
       const task = objClass.loadStore({
-        fieldFilter: this.fieldFilter,
         obj,
         store,
         getObject: id => objsMap[id] || this.objio.loadObject(id)
@@ -68,7 +67,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[id];
       res[id] = {
         newId: obj.holder.getID(),
-        json: obj.holder.getJSON(),
+        json: obj.holder.getJSON(this.includeFilter),
         version: obj.holder.getVersion()
       };
     });
@@ -90,7 +89,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[item.id];
       const objClass = OBJIOItem.getClass(obj);
       const task = objClass.loadStore({
-        fieldFilter: this.fieldFilter,
+        fieldFilter: this.includeFilter,
         obj,
         store: item.json,
         getObject: id => this.objio.loadObject(id)
@@ -108,7 +107,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[item.id];
       res.items.push({
         id: item.id,
-        json: obj.holder.getJSON(this.fieldFilter),
+        json: obj.holder.getJSON(this.includeFilter),
         version: obj.holder.getVersion()
       });
     });
@@ -128,17 +127,17 @@ export class OBJIOServerStore implements OBJIOStore {
     res[id] = {
       classId: classItem.TYPE_ID,
       version: obj.holder.getVersion(),
-      json: obj.holder.getJSON(this.fieldFilter)
+      json: obj.holder.getJSON(this.includeFilter)
     };
 
     if (!deep)
       return;
 
-    const json = obj.holder.getJSON(this.fieldFilter);
+    const json = obj.holder.getJSON(this.includeFilter);
     if (classItem.getRelObjIDS)
       await Promise.all(classItem.getRelObjIDS(json).map(id => this.readObjectResult(id, res, deep)));
 
-    const fields = SERIALIZE(classItem, this.fieldFilter);
+    const fields = SERIALIZE(classItem, this.includeFilter);
     let tasks: Array<Promise<any>> = [];
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')

@@ -6,3 +6,5 @@ export * from './src/objio/objio';
 export * from './src/objio/factory';
 export * from './src/common/publisher';
 export * from './src/objio/objio-server-store';
+export * from './src/server/auth-requestor';
+export * from './src/server/requestor';
