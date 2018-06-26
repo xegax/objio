@@ -15,7 +15,7 @@ export interface ServerStoreArgs {
   factory: OBJIOFactory;  // server side factory
   store: OBJIOStore;      // server side store
   saveTime?: number;
-  fieldFilter?: FieldFilter;
+  includeFilter?: FieldFilter;
 };
 
 // the store send and receive client json data 
