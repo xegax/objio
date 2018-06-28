@@ -12,7 +12,7 @@ import {
   OBJIOStore,
   CreateObjectsArgs
 } from './store';
-import { Requestor } from './common';
+import { Requestor } from '../common/requestor';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -295,7 +295,7 @@ export class OBJIO {
 
       let w: { version: number };
       try {
-        w = await req.sendJSON<{ version: number }>(`${baseUrl}version`, {}, prev);
+        w = await req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev});
       } catch (e) {
         return setTimeout(loop, timeOut);
       }
@@ -306,7 +306,7 @@ export class OBJIO {
       await this.getWrites();
 
       prev = w;
-      const items = await req.getJSON<Array<{ id: string, version: string }>>(`${baseUrl}items`, {});
+      const items = await req.getJSON<Array<{ id: string, version: string }>>({url: `${baseUrl}items`});
       const res = await this.updateObjects(items);
 
       subscribers.forEach(s => {

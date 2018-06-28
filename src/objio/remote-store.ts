@@ -1,11 +1,10 @@
-import {
-  Requestor
-} from './common';
+import { Requestor } from '../common/requestor';
 import {
   CreateObjectsArgs,
   CreateResult,
   OBJIOStore,
-  WriteResult
+  WriteResult,
+  ReadResult
 } from './store';
 
 export interface OBJIORemoteStoreArgs {
@@ -17,28 +16,49 @@ export class OBJIORemoteStore implements OBJIOStore {
   private req: Requestor;
   private root: string = 'objio/';
 
-  constructor(args: OBJIORemoteStoreArgs) {
+  constructor(args: Partial<OBJIORemoteStoreArgs>) {
     this.req = args.req;
-    this.root = args.root || this.root;
+
+    if (args.root != null)
+      this.root = args.root;
   }
 
   createObjects(arr: CreateObjectsArgs): Promise<CreateResult> {
-    return this.req.sendJSON(`${this.root}create-object`, {}, arr);
+    return this.req.getJSON({
+      url: this.getUrl('create-object'),
+      postData: arr
+    });
   }
 
   writeObjects(arr: Array<{id: string, json: Object}>): Promise<WriteResult> {
-    return this.req.sendJSON(`${this.root}write-objects`, {}, arr);
+    return this.req.getJSON({
+      url: this.getUrl('write-objects'),
+      postData: arr
+    });
   }
 
-  readObject(id: string): Promise<any> {
-    return this.req.sendJSON(`${this.root}read-object`, {}, {id});
+  readObject(id: string): Promise<ReadResult> {
+    return this.req.getJSON({
+      url: this.getUrl('read-object'),
+      postData: {id}
+    });
   }
 
-  readObjects(id: string): Promise<any> {
-    return this.req.sendJSON(`${this.root}read-objects`, {}, {id});
+  readObjects(id: string): Promise<ReadResult> {
+    return this.req.getJSON({
+      url: this.getUrl('read-objects'),
+      postData: {id}
+    });
   }
 
   invokeMethod(id: string, method: string, args: Object): Promise<any> {
-    return this.req.sendJSON(`${this.root}invoke-method`, {}, {id, method, args});
+    return this.req.getJSON({
+      url: this.getUrl('invoke-method'),
+      postData: {id, method, args}
+    });
+  }
+
+  private getUrl(url: string): string {
+    return `${this.root}${url}`;
   }
 }
