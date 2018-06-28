@@ -66,8 +66,11 @@ export class RequestorBase implements Requestor {
       url: this.getUrl(args.url)
     };
 
+    if (this.params)
+      newArgs.params = { ...this.params };
+
     if (args.params)
-      newArgs.params = { ...this.params, ...args.params };
+      newArgs.params = { ...newArgs.params, ...args.params };
 
     return newArgs;
   }

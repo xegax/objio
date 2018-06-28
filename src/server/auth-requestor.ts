@@ -1,8 +1,8 @@
-import { Requestor } from './requestor';
+import { Requestor, RequestArgs } from '../common/requestor';
 
 export type LoginFormCallback = (error?: string) => Promise<{login: string; pass: string}>;
 
-export class AuthRequestor extends Requestor {
+export class AuthRequestor implements Requestor {
   private req: Requestor;
   private requests = Array<{
     request: () => Promise<any>,
@@ -12,8 +12,6 @@ export class AuthRequestor extends Requestor {
   private showLoginForm: LoginFormCallback;
 
   constructor(req: Requestor, showLogin: LoginFormCallback) {
-    super();
-
     this.req = req;
     this.showLoginForm = showLogin;
     this.onAuthRequired = this.onAuthRequiredImpl();
@@ -60,7 +58,10 @@ export class AuthRequestor extends Requestor {
   }
 
   private login(login: string, passwd: string) {
-    return this.req.sendJSON('objio/login', {}, {login, passwd}).then((res: {error: string}) => {
+    return this.req.getJSON({
+      url: 'objio/login',
+      postData: {login, passwd}
+    }).then((res: {error: string}) => {
       if (res.error)
         throw res.error;
       return null;
@@ -82,12 +83,12 @@ export class AuthRequestor extends Requestor {
     });
   }
 
-  sendData(url: string, params?: Object, postData?: string, opts?): Promise<string> {
-    return this.pushRequest(() => this.req.sendData(url, params, postData));
+  getData(args: RequestArgs): Promise<string> {
+    return this.pushRequest(() => this.req.getData(args));
   }
 
-  getData(url: string, params?: Object): Promise<string> {
-    return this.pushRequest(() => this.req.getData(url, params));
+  getJSON(args: RequestArgs): Promise<any> {
+    return this.pushRequest(() => this.req.getJSON(args));
   }
 
   isAuthorized(): boolean {
