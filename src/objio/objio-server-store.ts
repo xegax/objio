@@ -7,7 +7,7 @@ import {
 } from './store';
 import { OBJIO } from './objio';
 import { OBJIOFactory } from './factory';
-import { OBJIOItem, SERIALIZE, Tags, FieldFilter } from './item';
+import { OBJIOItem, SERIALIZE, FieldFilter } from './item';
 
 // objio client -> remote-store -> objio server -> db-store
 
@@ -166,7 +166,7 @@ export class OBJIOServerStore implements OBJIOStore {
   }
 
   async invokeMethod(id: string, methodName: string, args: Object): Promise<any> {
-    const obj = this.objio.getObject(id);
+    const obj = this.objio.getObject(id) || await this.objio.loadObject(id);
     if (!obj)
       throw new Error(`object ${id} not found`);
 
