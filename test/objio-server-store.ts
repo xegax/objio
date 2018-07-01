@@ -127,7 +127,7 @@ describe('OBJIOServerStore', () => {
   });
 
   it('OBJIOServerStore.readObject without "sr" tag', async () => {
-    serverStore['fieldFilter'] = (f: Field) => {
+    serverStore['includeFilter'] = (f: Field) => {
       return !f.tags || !f.tags.length || f.tags.indexOf('sr') == -1;
     };
 
@@ -151,7 +151,7 @@ describe('OBJIOServerStore', () => {
     expect(obj).instanceof(SrTestObj);
     expect(obj.img).eq(id1.data.img);
 
-    serverStore['fieldFilter'] = null;
+    serverStore['includeFilter'] = null;
   });
 
   it('OBJIOServerStore.writeObjects', async () => {

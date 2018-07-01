@@ -41,7 +41,7 @@ export function EXTEND<T = any>(fields: FieldsMap<T>, add: Partial<Field>): Fiel
 }
 
 interface OBJItemConstructor extends ObjectConstructor {
-  new(): OBJIOItem;
+  new(json?: Object): OBJIOItem;
 }
 
 export interface LoadStoreArgs {
@@ -58,11 +58,13 @@ export type GetRelObjIDSResult = Array<string>;
 export interface OBJIOItemClass {
   TYPE_ID: string;
   SERIALIZE: SERIALIZER;
-  loadStore?: (args: LoadStoreArgs) => LoadStoreResult;
-  saveStore?: (obj: OBJIOItem) => SaveStoreResult;
-  getRelObjIDS?: (store: Object, replaceID?: (id: string) => string) => GetRelObjIDSResult;
+
+  loadStore?(args: LoadStoreArgs): LoadStoreResult;
+  saveStore?(obj: OBJIOItem): SaveStoreResult;
+  getRelObjIDS?(store: Object, replaceID?: (id: string) => string): GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
-  invokeMethod?: (obj: OBJIOItem, name: string, args: Object) => Promise<any>;
+  invokeMethod?(obj: OBJIOItem, name: string, args: Object): Promise<any>;
+  create?(json?: Object): OBJIOItem | Promise<OBJIOItem>;
 }
 
 export interface OBJIOItemHolderOwner {
@@ -79,7 +81,12 @@ export interface InitArgs {
 }
 
 export interface MethodsToInvoke {
-  [mathod: string]: (args: Object) => any;
+  [method: string]: (args: Object) => any;
+}
+
+export interface OBJIOEventHandler {
+  onLoaded(): Promise<any>;
+  onObjChanged(): void;
 }
 
 export class OBJIOItemHolder extends Publisher {
@@ -87,6 +94,7 @@ export class OBJIOItemHolder extends Publisher {
   private obj: OBJIOItem;
   private owner: OBJIOItemHolderOwner;
   private methodsToInvoke: MethodsToInvoke = {};
+  private eventHandler: Partial<OBJIOEventHandler> = {};
 
   private srvVersion: string = '';
 
@@ -111,8 +119,26 @@ export class OBJIOItemHolder extends Publisher {
     return this.methodsToInvoke;
   }
 
+  setEventHandler(handler: Partial<OBJIOEventHandler>) {
+    this.eventHandler = {...handler};
+  }
+
   getID(): string {
     return this.id;
+  }
+
+  onLoaded(): Promise<any> {
+    if (!this.eventHandler.onLoaded)
+      return null;
+
+    return this.eventHandler.onLoaded();
+  }
+
+  onObjChanged(): void {
+    if (!this.eventHandler.onObjChanged)
+      return null;
+
+    return this.eventHandler.onObjChanged();
   }
 
   save(): Promise<any> {
@@ -260,8 +286,9 @@ export class OBJIOItem {
     return arr;
   }
 
-  static create(objClass: OBJIOItemClass): OBJIOItem {
-    return new (objClass as any as OBJItemConstructor)();
+  static create(json?: Object): OBJIOItem {
+    const objClass: OBJIOItemClass = this.getClass();
+    return new (objClass as any as OBJItemConstructor)(json);
   }
 
   static getClass(obj?: OBJIOItem): OBJIOItemClass {

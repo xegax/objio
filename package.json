@@ -10,7 +10,7 @@
     "dist": "tsc",
     "dev": "npm run clean-build && tsc -p tsconfig.publish.json -outDir build && shx cp package.json build",
     "test": "node_modules/.bin/mocha",
-    "dev-test": "npm run dev && npm run test",
+    "dev-test": "npm run clean-build && tsc -p tsconfig.json && npm run test",
     "clean": "npm run clean-index && npm run clean-src && npm run clean-test",
     "clean-index": "shx rm -rf index.d.ts index.js index.js.map server.d.ts server.js server.js.map",
     "clean-src": "shx rm -rf src/**/*.js src/**/*.js.map src/**/*.d.ts",

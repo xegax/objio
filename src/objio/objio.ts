@@ -2,7 +2,6 @@ import { OBJIOFactory } from './factory';
 import { OBJIOStoreBase } from './store';
 import {
   OBJIOItem,
-  OBJIOItemClass,
   OBJIOItemHolder
 } from './item';
 import { Timer } from '../common/timer';
@@ -157,20 +156,12 @@ export class OBJIO {
     return this.store.invokeMethod(obj.holder.getID(), name, args);
   }
 
-  async createObject<T>(objOrClass: OBJIOItem | string): Promise<T> {
-    let obj: OBJIOItem;
-    if (typeof objOrClass == 'string') {
-      const objClass = this.factory.findItem(objOrClass) as any;
-      obj = OBJIOItem.create(objClass);
-    } else {
-      obj = objOrClass;
-    }
-
+  async createObject<T>(obj: OBJIOItem): Promise<T> {
     const objs = OBJIOItem.getRelObjs(obj, [obj]);
     const objsJSONMap: CreateObjectsArgs = {};
     const objsMap: { [id: string]: OBJIOItem } = {};
     objs.forEach(obj => {
-      const objClass = obj.constructor as any as OBJIOItemClass;
+      const objClass = OBJIOItem.getClass(obj);
 
       const holder = obj.getHolder();
       const id = holder.getID();
@@ -202,7 +193,13 @@ export class OBJIO {
       let newObj: OBJIOItem;
 
       if (!(newObj = this.objectMap[objId])) {
-        newObj = OBJIOItem.create(objClass);
+        const newObjOrPromise = objClass.create(store.json);
+        if (newObjOrPromise instanceof Promise) {
+          newObj = await newObjOrPromise;
+        } else {
+          newObj = newObjOrPromise;
+        }
+
         this.initNewObject(newObj, objId, store.version);
       }
 
@@ -211,7 +208,8 @@ export class OBJIO {
         store: store.json,
         getObject: loadObjectImpl
       });
-      newObj.getHolder().updateVersion(store.version);
+      await newObj.holder.onLoaded();
+      newObj.holder.updateVersion(store.version);
 
       return newObj;
     };
@@ -257,8 +255,9 @@ export class OBJIO {
         getObject: id => this.objectMap[id] || this.loadObject(id),
         store: json
       });
-      obj.getHolder().updateVersion(version);
-      obj.getHolder().notify();
+      obj.holder.updateVersion(version);
+      obj.holder.onObjChanged();
+      obj.holder.notify();
 
       return { id: item.id, json };
     };

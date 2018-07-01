@@ -35,15 +35,24 @@ export class OBJIOServerStore implements OBJIOStore {
   async createObjects(ids: CreateObjectsArgs): Promise<CreateResult> {
     let objsMap: {[id: string]: OBJIOItem} = {};
     let firstId: string;
+    let tasks: Array<Promise<any>> = [];
     Object.keys(ids).forEach(id => {
       const item = ids[id];
       const objClass = this.factory.findItem(item.classId);
-      const obj = this.objio.getObject(id) || OBJIOItem.create(objClass);
-      objsMap[id] = obj;
+      const objOrPromise = this.objio.getObject(id) || objClass.create(item.json);
+
+      if (objOrPromise instanceof OBJIOItem) {
+        objsMap[id] = objOrPromise;
+      } else {
+        objOrPromise.then(obj => objsMap[id] = obj);
+      }
+
       !firstId && (firstId = id);
     });
 
-    let tasks: Array<Promise<any>> = [];
+    await Promise.all(tasks);
+
+    tasks = [];
     Object.keys(objsMap).forEach(id => {
       const obj = objsMap[id];
       const store = ids[id].json;

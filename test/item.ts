@@ -33,7 +33,7 @@ class DummyCont extends OBJIOItem {
 
 describe('OBJIOItem', () => {
   it('OBJItem.create', () => {
-    const obj = OBJIOItem.create(Dummy);
+    const obj = Dummy.create();
     expect(obj).instanceof(Dummy);
   });
 
