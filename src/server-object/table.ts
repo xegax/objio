@@ -10,6 +10,14 @@ import { Database } from 'sqlite3';
 
 let db: Database;
 
+function srPromise(db: Database, callback: (resolve, reject) => void): Promise<any> {
+  return new Promise((resolve, reject) => {
+    db.serialize(() => {
+      callback(resolve, reject);
+    });
+  });
+}
+
 function openDB(file: string): Promise<Database> {
   if (db)
     return Promise.resolve(db);
@@ -26,7 +34,7 @@ function openDB(file: string): Promise<Database> {
 }
 
 function exec(db: Database, sql: string): Promise<any> {
-  return new Promise((resolve, reject) => {
+  return srPromise(db, (resolve, reject) => {
     db.exec(sql, err => {
       if (!err) {
         resolve();
@@ -37,8 +45,20 @@ function exec(db: Database, sql: string): Promise<any> {
   });
 }
 
+function run(db: Database, sql: string, params: Array<any>): Promise<any> {
+  return srPromise(db, (resolve, reject) => {
+    db.run(sql, params, err => {
+      if (!err) {
+        resolve();
+      } else {
+        reject(err);
+      }
+    });
+  });
+}
+
 function all<T = Object>(db: Database, sql: string): Promise<Array<T>> {
-  return new Promise((resolve, reject) => {
+  return srPromise(db, (resolve, reject) => {
     db.all(sql, (err, rows: Array<T>) => {
       if (err)
         return reject(err);
@@ -48,7 +68,7 @@ function all<T = Object>(db: Database, sql: string): Promise<Array<T>> {
 }
 
 function get<T = Object>(db: Database, sql: string): Promise<T> {
-  return new Promise((resolve, reject) => {
+  return srPromise(db, (resolve, reject) => {
     db.get(sql, (err, row: T) => {
       if (err)
         return reject(err);
@@ -75,6 +95,17 @@ function loadRowsCount(db: Database, table: string): Promise<number> {
     .then(res => res.count);
 }
 
+function insert(db: Database, table: string, columns: Array<string>, cells: Cells): Promise<any> {
+  const valsHolder = cells.map(row => `(${row.map(() => '?').join(', ')})`).join(', ');
+
+  const values = [];
+  cells.forEach(row => {
+    values.push(...row);
+  });
+  const sql = `insert into ${table}(${columns.join(',')}) VALUES ${valsHolder};`;
+  return run(db, sql, values);
+}
+
 interface TableArgsExt extends TableArgs {
   db: string;
 }
@@ -84,27 +115,53 @@ export class Table extends TableBase {
     super(args);
 
     this.holder.setMethodsToInvoke({
-      loadCells: (range: Range) => this.loadCells(range)
+      loadCells: (range: Range) => this.loadCells(range),
+      pushCells: (cells: Cells) => this.pushCells(cells)
     });
 
     this.holder.setEventHandler({
       onLoaded: () => {
-        return openDB('test.sqlite3')
+        return (
+          openDB('test.sqlite3')
           .then(db => {
             return Promise.all([
               loadTableInfo(db, this.table),
               loadRowsCount(db, this.table) as any
             ]);
-          }).then(res => {
+          })
+          .then(res => {
             this.columns = res[0];
             this.totalRowsNum = res[1];
-          });
+          })
+        );
       }
     });
   }
 
   loadCells(range: Range): Promise<Cells> {
-    return Promise.resolve([]);
+    return (
+      openDB('test.sqlite3')
+      .then(db => {
+        return all<Object>(db, `select * from ${this.table} limit ${range.count} offset ${range.first}`);
+      }).then(rows => {
+        return rows.map(row => Object.keys(row).map(key => row[key]));
+      })
+    );
+  }
+
+  pushCells(cells: Cells): Promise<number> {
+    let db: Database;
+    return (
+      openDB('test.sqlite3')
+      .then(dbobj => db = dbobj)
+      .then(() => insert(db, this.table, this.columns.map(col => col.name), cells))
+      .then(() => loadRowsCount(db, this.table))
+      .then(rows => {
+        this.totalRowsNum = rows;
+        this.holder.save();
+        return rows;
+      })
+    );
   }
 
   static create(json: TableArgsExt): Table | Promise<Table> {

@@ -72,6 +72,10 @@ export class Table extends OBJIOItem {
     return this.holder.invokeMethod('loadCells', rowsRange);
   }
 
+  pushCells(cells: Cells): Promise<number> {
+    return this.holder.invokeMethod('pushCells', cells);
+  }
+
   static TYPE_ID = 'Table';
   static SERIALIZE: SERIALIZER = () => ({
     'table': { type: 'string' },
