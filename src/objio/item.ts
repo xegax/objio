@@ -123,6 +123,10 @@ export class OBJIOItemHolder extends Publisher {
     this.eventHandler = {...handler};
   }
 
+  getEventHandler(): Partial<OBJIOEventHandler> {
+    return this.eventHandler;
+  }
+
   getID(): string {
     return this.id;
   }
@@ -286,7 +290,7 @@ export class OBJIOItem {
     return arr;
   }
 
-  static create(json?: Object): OBJIOItem {
+  static create(json?: Object): OBJIOItem | Promise<OBJIOItem> {
     const objClass: OBJIOItemClass = this.getClass();
     return new (objClass as any as OBJItemConstructor)(json);
   }
