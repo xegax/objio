@@ -190,7 +190,8 @@ async function getPrj(data: PrjData, factory: OBJIOFactory, rootDir: string): Pr
         store: new OBJIOFSLocalStore(factory, path),
         includeFilter: (field: Field): boolean => {
           return !field.tags || !field.tags.length || field.tags.indexOf('sr') == -1;
-        }
+        },
+        context: {path: path + '/', db: 'db.sqlite'}
       }),
       watcher: new ObjWatcher()
     };

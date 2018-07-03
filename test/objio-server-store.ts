@@ -76,7 +76,7 @@ describe('OBJIOServerStore', () => {
     expect(serverStore).not.eq(null);
     expect(serverStore).instanceof(OBJIOServerStore);
 
-    objio = await OBJIO.create(factory, serverStore);
+    objio = await OBJIO.create({factory, store: serverStore, context: {db: 'test.sqlite3', path: ''}});
   });
 
   it('OBJIOServerStore.readObject', async () => {

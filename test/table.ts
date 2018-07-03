@@ -9,7 +9,7 @@ describe('server Table', () => {
   });
 
   it('Table.create', async () => {
-    await Table.create({db: 'test.sqlite3', table: 'Table1', columns: [
+    await Table.create({path: '', db: 'test.sqlite3'}, {table: 'Table1', columns: [
       { name: 'col1', type: 'INTEGER' },
       { name: 'col2', type: 'TEXT' }
     ]});
@@ -20,6 +20,7 @@ describe('server Table', () => {
   it('Table.pushCells', async () => {
     const t = new Table({table: 'Table1', columns: []});
     t.holder.save = () => Promise.resolve();
+    t.holder.getDBPath = () => 'test.sqlite3';
 
     await t.holder.onLoaded();
     await t.pushCells([
@@ -31,6 +32,7 @@ describe('server Table', () => {
 
   it('Table.load', async () => {
     const t = new Table({table: 'Table1', columns: []});
+    t.holder.getDBPath = () => 'test.sqlite3';
     await t.holder.onLoaded();
     expect(t.getTotalRowsNum()).eq(3);
     expect(t.getColumns()).eqls([{name: 'col1', type: 'INTEGER'}, {name: 'col2', type: 'TEXT'}]);

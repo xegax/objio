@@ -7,6 +7,7 @@ import {
   NameType
 } from '../client-object/table';
 import { Database } from 'sqlite3';
+import { SERIALIZER, EXTEND } from '../objio/item';
 
 let db: Database;
 
@@ -106,10 +107,6 @@ function insert(db: Database, table: string, columns: Array<string>, cells: Cell
   return run(db, sql, values);
 }
 
-interface TableArgsExt extends TableArgs {
-  db: string;
-}
-
 export class Table extends TableBase {
   constructor(args?: TableArgs) {
     super(args);
@@ -122,7 +119,7 @@ export class Table extends TableBase {
     this.holder.setEventHandler({
       onLoaded: () => {
         return (
-          openDB('test.sqlite3')
+          openDB(this.holder.getDBPath())
           .then(db => {
             return Promise.all([
               loadTableInfo(db, this.table),
@@ -134,13 +131,19 @@ export class Table extends TableBase {
             this.totalRowsNum = res[1];
           })
         );
+      },
+      onCreate: () => {
+        return (
+          openDB(this.holder.getDBPath())
+          .then(db => createTable(db, this.table, this.columns))
+        );
       }
     });
   }
 
   loadCells(range: Range): Promise<Cells> {
     return (
-      openDB('test.sqlite3')
+      openDB(this.holder.getDBPath())
       .then(db => {
         return all<Object>(db, `select * from ${this.table} limit ${range.count} offset ${range.first}`);
       }).then(rows => {
@@ -152,7 +155,7 @@ export class Table extends TableBase {
   pushCells(cells: Cells): Promise<number> {
     let db: Database;
     return (
-      openDB('test.sqlite3')
+      openDB(this.holder.getDBPath())
       .then(dbobj => db = dbobj)
       .then(() => insert(db, this.table, this.columns.map(col => col.name), cells))
       .then(() => loadRowsCount(db, this.table))
@@ -164,9 +167,9 @@ export class Table extends TableBase {
     );
   }
 
-  static create(json: TableArgsExt): Table | Promise<Table> {
-    return openDB(json.db || 'test.sqlite3')
-    .then(db => createTable(db, json.table, json.columns))
-    .then(() => new Table(json));
-  }
+  static SERIALIZE: SERIALIZER = () => ({
+    ...TableBase.SERIALIZE(),
+    ...EXTEND({
+    }, { tags: ['sr'] })
+  });
 }

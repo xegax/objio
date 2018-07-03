@@ -2,7 +2,8 @@ import { OBJIOFactory } from './factory';
 import { OBJIOStoreBase } from './store';
 import {
   OBJIOItem,
-  OBJIOItemHolder
+  OBJIOItemHolder,
+  OBJIOContext
 } from './item';
 import { Timer } from '../common/timer';
 import { SerialPromise } from '../common/serial-promise';
@@ -91,18 +92,30 @@ export interface Observer {
   onSave?: (saved: Array<OBJIOItem>) => void;
 }
 
+export interface OBJIOArgs {
+  factory: OBJIOFactory;
+  store: OBJIOStore;
+  saveTime?: number;
+  context?: OBJIOContext;
+}
+
 export class OBJIO {
   private factory: OBJIOFactory;
   private store: OBJIOStoreBase;
   private objectMap: { [key: string]: OBJIOItem } = {};
   private savingQueue: SavingQueue;
   private observers: Array<Observer> = Array<Observer>();
+  private context: OBJIOContext = {
+    path: '',
+    db: 'db'
+  };
 
-  static create(factory: OBJIOFactory, store: OBJIOStore, saveTime?: number): Promise<OBJIO> {
+  static create(args: OBJIOArgs): Promise<OBJIO> {
     let obj = new OBJIO();
-    obj.store = new OBJIOStoreBase(store);
-    obj.factory = factory;
-    obj.savingQueue = new SavingQueue(saveTime || 100, store, obj);
+    obj.store = new OBJIOStoreBase(args.store);
+    obj.factory = args.factory;
+    obj.savingQueue = new SavingQueue(args.saveTime || 100, args.store, obj);
+    obj.context = {...obj.context, ...(args.context || {})};
 
     return Promise.resolve(obj);
   }
@@ -134,7 +147,8 @@ export class OBJIO {
       owner: {
         save: obj => this.saveImpl(obj),
         create: obj => this.createObject(obj),
-        invoke: (obj, name, args) => this.invokeMethod(obj, name, args)
+        invoke: (obj, name, args) => this.invokeMethod(obj, name, args),
+        context: () => this.context
       }
     });
     this.objectMap[objId] = obj;
@@ -142,6 +156,10 @@ export class OBJIO {
 
   private saveImpl = (obj: OBJIOItem) => {
     return this.savingQueue.addToSave(obj);
+  }
+
+  getContext(): OBJIOContext {
+    return this.context;
   }
 
   getFactory(): OBJIOFactory {
@@ -181,6 +199,7 @@ export class OBJIO {
       this.initNewObject(obj, item.newId, item.version);
     });
 
+    await Promise.all(Object.keys(res).map(id => objsMap[id].holder.onCreate()));
     return obj as any as T;
   }
 
@@ -193,7 +212,7 @@ export class OBJIO {
       let newObj: OBJIOItem;
 
       if (!(newObj = this.objectMap[objId])) {
-        const newObjOrPromise = objClass.create(store.json);
+        const newObjOrPromise = objClass.create();
         if (newObjOrPromise instanceof Promise) {
           newObj = await newObjOrPromise;
         } else {
@@ -333,6 +352,6 @@ export class OBJIO {
   }
 }
 
-export function createOBJIO(factory: OBJIOFactory, store: OBJIOStore): Promise<OBJIO> {
-  return OBJIO.create(factory, store);
+export function createOBJIO(args: OBJIOArgs): Promise<OBJIO> {
+  return OBJIO.create(args);
 }

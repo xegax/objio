@@ -64,13 +64,19 @@ export interface OBJIOItemClass {
   getRelObjIDS?(store: Object, replaceID?: (id: string) => string): GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
   invokeMethod?(obj: OBJIOItem, name: string, args: Object): Promise<any>;
-  create?(json?: Object): OBJIOItem | Promise<OBJIOItem>;
+  create?(): OBJIOItem | Promise<OBJIOItem>;
+}
+
+export interface OBJIOContext {
+  path: string;
+  db: string;
 }
 
 export interface OBJIOItemHolderOwner {
   save(obj: OBJIOItem): Promise<any>;
   create(obj: OBJIOItem): Promise<OBJIOItem>;
   invoke(obj: OBJIOItem, name: string, args: Object): Promise<any>;
+  context(): OBJIOContext;
 }
 
 export interface InitArgs {
@@ -86,6 +92,7 @@ export interface MethodsToInvoke {
 
 export interface OBJIOEventHandler {
   onLoaded(): Promise<any>;
+  onCreate(): Promise<any>;
   onObjChanged(): void;
 }
 
@@ -138,6 +145,13 @@ export class OBJIOItemHolder extends Publisher {
     return this.eventHandler.onLoaded();
   }
 
+  onCreate(): Promise<any> {
+    if (!this.eventHandler.onCreate)
+      return null;
+
+    return this.eventHandler.onCreate();
+  }
+
   onObjChanged(): void {
     if (!this.eventHandler.onObjChanged)
       return null;
@@ -182,6 +196,19 @@ export class OBJIOItemHolder extends Publisher {
     });
 
     return json;
+  }
+
+  static getFilePath(ctx: OBJIOContext, f: string): string {
+    return ctx.path + f;
+  }
+
+  getDBPath(): string {
+    const ctx = this.owner.context();
+    return this.getFilePath(ctx.db);
+  }
+
+  getFilePath(file: string) {
+    return OBJIOItemHolder.getFilePath(this.owner.context(), file);
   }
 
   updateVersion(version: string) {
@@ -290,9 +317,9 @@ export class OBJIOItem {
     return arr;
   }
 
-  static create(json?: Object): OBJIOItem | Promise<OBJIOItem> {
+  static create(): OBJIOItem | Promise<OBJIOItem> {
     const objClass: OBJIOItemClass = this.getClass();
-    return new (objClass as any as OBJItemConstructor)(json);
+    return new (objClass as any as OBJItemConstructor)();
   }
 
   static getClass(obj?: OBJIOItem): OBJIOItemClass {

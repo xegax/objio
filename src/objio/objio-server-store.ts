@@ -5,16 +5,13 @@ import {
   WriteResult,
   ReadResult
 } from './store';
-import { OBJIO } from './objio';
+import { OBJIO, OBJIOArgs } from './objio';
 import { OBJIOFactory } from './factory';
 import { OBJIOItem, SERIALIZE, FieldFilter } from './item';
 
 // objio client -> remote-store -> objio server -> db-store
 
-export interface ServerStoreArgs {
-  factory: OBJIOFactory;  // server side factory
-  store: OBJIOStore;      // server side store
-  saveTime?: number;
+export interface ServerStoreArgs extends OBJIOArgs {
   includeFilter?: FieldFilter;
 };
 
@@ -25,11 +22,15 @@ export class OBJIOServerStore implements OBJIOStore {
   private includeFilter?: FieldFilter;
 
   static async create(args: ServerStoreArgs): Promise<OBJIOServerStore> {
-    let proxyStore = new OBJIOServerStore();
-    proxyStore.factory = args.factory;
-    proxyStore.objio = await OBJIO.create(args.factory, args.store, args.saveTime || 1);
-    proxyStore.includeFilter = args.includeFilter;
-    return proxyStore;
+    let ss = new OBJIOServerStore();
+
+    const { includeFilter, ...objioArgs } = args;
+
+    ss.includeFilter = includeFilter;
+    ss.factory = args.factory;
+    ss.objio = await OBJIO.create({...objioArgs, saveTime: args.saveTime || 1});
+
+    return ss;
   }
 
   async createObjects(ids: CreateObjectsArgs): Promise<CreateResult> {
@@ -39,12 +40,14 @@ export class OBJIOServerStore implements OBJIOStore {
     Object.keys(ids).forEach(id => {
       const item = ids[id];
       const objClass = this.factory.findItem(item.classId);
-      const objOrPromise = this.objio.getObject(id) || objClass.create(item.json);
+      const objOrPromise = this.objio.getObject(id) || objClass.create();
 
       if (objOrPromise instanceof OBJIOItem) {
         objsMap[id] = objOrPromise;
       } else {
         objOrPromise.then(obj => objsMap[id] = obj);
+        objOrPromise.catch(err => console.log(err));
+        tasks.push(objOrPromise);
       }
 
       !firstId && (firstId = id);
@@ -103,10 +106,13 @@ export class OBJIOServerStore implements OBJIOStore {
         store: item.json,
         getObject: id => this.objio.loadObject(id)
       });
-      if (task instanceof Promise)
-        tasks.push(task);
-
-      obj.holder.save();
+      if (task instanceof Promise) {
+        tasks.push(task.then(() => {
+          obj.holder.save();
+        }));
+      } else {
+        obj.holder.save();
+      }
     });
 
     await Promise.all(tasks);
