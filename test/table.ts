@@ -9,10 +9,15 @@ describe('server Table', () => {
   });
 
   it('Table.create', async () => {
-    await Table.create({path: '', db: 'test.sqlite3'}, {table: 'Table1', columns: [
-      { name: 'col1', type: 'INTEGER' },
-      { name: 'col2', type: 'TEXT' }
-    ]});
+    const t: Table = new Table({
+      table: 'Table1',
+      columns: [
+        {name: 'col1', type: 'INTEGER'},
+        {name: 'col2', type: 'TEXT'}
+      ]
+    });
+    t.holder.getDBPath = () => 'test.sqlite3';
+    await t.holder.getEventHandler().onCreate();
 
     expect(existsSync('test.sqlite3')).eq(true, 'test.sqlite3 file must exists');
   });

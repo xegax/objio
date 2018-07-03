@@ -19,11 +19,11 @@ export class AuthRequestor implements Requestor {
 
   private onAuthRequired: () => Promise<any>;
 
+  
   private pushRequest(request: () => Promise<any>): Promise<any> {
     return new Promise((resolve, reject) => {
-      request().then(resolve).catch((err: ProgressEvent) => {
-        const target = err.currentTarget as XMLHttpRequest;
-        if (target.status != 401)
+      request().then(resolve).catch((err: XMLHttpRequest) => {
+        if (err.status != 401)
           return reject(err);
 
         this.requests.push({request, resolve, reject});
@@ -47,9 +47,8 @@ export class AuthRequestor implements Requestor {
         this.requests.splice(0, 1);
         req.resolve(data);
       } catch (err) {
-        const target = err.currentTarget as XMLHttpRequest;
-        if (target.status != 401) {
-          req.reject(target.responseText);
+        if (err.status != 401) {
+          req.reject(err.responseText);
         } else {
           this.tryToAuthorize();
         }
@@ -59,28 +58,28 @@ export class AuthRequestor implements Requestor {
 
   private login(login: string, passwd: string) {
     return this.req.getJSON({
-      url: 'objio/login',
+      url: 'login',
       postData: {login, passwd}
-    }).then((res: {error: string}) => {
-      if (res.error)
-        throw res.error;
-      return null;
+    }).then((res: {error: string, sessId: string}) => {
+      if (!res.error) {
+        this.req.setCookie({sessId: res.sessId});
+        return {};
+      }
+
+      throw res.error;
     });
   }
 
   private onAuthRequiredImpl(): () => Promise<any> {
     let error: string;
-    return () => new Promise((resolve, reject) => {
-      this.showLoginForm(error)
+    return () => this.showLoginForm(error)
       .then(args => this.login(args.login, args.pass))
       .then(() => {
         error = null;
-        resolve();
       }).catch((res: string) => {
         error = res;
-        reject();
+        throw error;
       });
-    });
   }
 
   getData(args: RequestArgs): Promise<string> {
@@ -89,6 +88,10 @@ export class AuthRequestor implements Requestor {
 
   getJSON(args: RequestArgs): Promise<any> {
     return this.pushRequest(() => this.req.getJSON(args));
+  }
+
+  setCookie(value: Object) {
+    this.req.setCookie(value);
   }
 
   isAuthorized(): boolean {

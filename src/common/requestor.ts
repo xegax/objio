@@ -1,5 +1,6 @@
 import { text } from 'd3-request';
-import {Encryptor, EmptyEncryptor} from '../common/encryptor';
+import { Encryptor } from '../common/encryptor';
+import * as axios from 'axios';
 
 export interface RequestArgs {
   url: string;
@@ -9,6 +10,8 @@ export interface RequestArgs {
 }
 
 export interface Requestor {
+  setCookie(cookie: Object);
+
   getData(args: RequestArgs): Promise<string>;
   getJSON<T = any>(args: RequestArgs): Promise<T>;
 }
@@ -44,6 +47,10 @@ export class RequestorBase implements Requestor {
     this.requestor = params.requestor;
   }
 
+  setCookie(value: Object) {
+    this.requestor.setCookie(value);
+  }
+
   getData(args: RequestArgs): Promise<string> {
     return this.requestor.getData(this.getArgs(args));
   }
@@ -77,31 +84,42 @@ export class RequestorBase implements Requestor {
 }
 
 class RequestorImpl implements Requestor {
+  private cookie: Object = {};
+
+  setCookie(value: Object) {
+    this.cookie = {...this.cookie, ...value};
+  }
+
   getData(args: RequestArgs): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      const url = makeUrl(args.url, args.params);
-      const req = text(url);
+    const url = makeUrl(args.url, args.params);
+    let postData = args.postData;
+    if (postData != null && typeof postData != 'string')
+      postData = JSON.stringify(postData);
 
-      const callback = (err, data: string) => {
-        if (err)
-          return reject(err);
+    const headers = {
+      'Cookie': Object.keys(this.cookie).map(key => [key, this.cookie[key]].join('=')).join('; ')
+    };
 
-        try {
-          resolve(data);
-        } catch (e) {
-          console.log('getData error', e, url);
-        }
-      };
+    if (postData)
+      return (
+        axios.default.post<string>(url, postData, { headers })
+        .then((res: axios.AxiosResponse<string>) => {
+          return (typeof res.data == 'string') ? res.data : JSON.stringify(res.data);
+        })
+        .catch(res => {
+          throw res.response;
+        })
+      );
 
-      let postData = args.postData;
-      if (postData != null && typeof postData != 'string')
-        postData = JSON.stringify(postData);
-
-      if (postData != null)
-        return req.post(postData, callback);
-
-      req.get(callback);
-    });
+    return (
+      axios.default.get<string>(url, { headers })
+      .then((res: axios.AxiosResponse<string>) => {
+        return (typeof res.data == 'string') ? res.data : JSON.stringify(res.data);
+      })
+      .catch(res => {
+        throw res.response;
+      })
+    );
   }
 
   getJSON<T = any>(args: RequestArgs): Promise<T> {
