@@ -2,6 +2,12 @@ import { Requestor, RequestArgs } from '../common/requestor';
 
 export type LoginFormCallback = (error?: string) => Promise<{login: string; pass: string}>;
 
+export interface AuthRequestorArgs {
+  req: Requestor;
+  showLogin: LoginFormCallback;
+  loginUrl?: string;
+}
+
 export class AuthRequestor implements Requestor {
   private req: Requestor;
   private requests = Array<{
@@ -10,16 +16,17 @@ export class AuthRequestor implements Requestor {
     reject: (err: any) => void
   }>();
   private showLoginForm: LoginFormCallback;
+  private loginUrl: string;
 
-  constructor(req: Requestor, showLogin: LoginFormCallback) {
-    this.req = req;
-    this.showLoginForm = showLogin;
+  constructor(args: AuthRequestorArgs) {
+    this.req = args.req;
+    this.showLoginForm = args.showLogin;
+    this.loginUrl = args.loginUrl || 'objio/login';
     this.onAuthRequired = this.onAuthRequiredImpl();
   }
 
   private onAuthRequired: () => Promise<any>;
 
-  
   private pushRequest(request: () => Promise<any>): Promise<any> {
     return new Promise((resolve, reject) => {
       request().then(resolve).catch((err: XMLHttpRequest) => {
@@ -58,7 +65,7 @@ export class AuthRequestor implements Requestor {
 
   private login(login: string, passwd: string) {
     return this.req.getJSON({
-      url: 'login',
+      url: this.loginUrl,
       postData: {login, passwd}
     }).then((res: {error: string, sessId: string}) => {
       if (!res.error) {

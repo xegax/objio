@@ -101,7 +101,7 @@ export class OBJIOItemHolder extends Publisher {
   private obj: OBJIOItem;
   private owner: OBJIOItemHolderOwner;
   private methodsToInvoke: MethodsToInvoke = {};
-  private eventHandler: Partial<OBJIOEventHandler> = {};
+  private eventHandler: Array<Partial<OBJIOEventHandler>> = [];
 
   private srvVersion: string = '';
 
@@ -126,11 +126,11 @@ export class OBJIOItemHolder extends Publisher {
     return this.methodsToInvoke;
   }
 
-  setEventHandler(handler: Partial<OBJIOEventHandler>) {
-    this.eventHandler = {...handler};
+  addEventHandler(handler: Partial<OBJIOEventHandler>) {
+    this.eventHandler.push({...handler});
   }
 
-  getEventHandler(): Partial<OBJIOEventHandler> {
+  getEventHandler(): Array<Partial<OBJIOEventHandler>> {
     return this.eventHandler;
   }
 
@@ -139,24 +139,15 @@ export class OBJIOItemHolder extends Publisher {
   }
 
   onLoaded(): Promise<any> {
-    if (!this.eventHandler.onLoaded)
-      return null;
-
-    return this.eventHandler.onLoaded();
+    return Promise.all(this.eventHandler.filter(item => item.onLoaded).map(handler => handler.onLoaded()));
   }
 
   onCreate(): Promise<any> {
-    if (!this.eventHandler.onCreate)
-      return null;
-
-    return this.eventHandler.onCreate();
+    return Promise.all(this.eventHandler.filter(item => item.onCreate).map(handler => handler.onCreate()));
   }
 
   onObjChanged(): void {
-    if (!this.eventHandler.onObjChanged)
-      return null;
-
-    return this.eventHandler.onObjChanged();
+    this.eventHandler.filter(item => item.onObjChanged).map(handler => handler.onObjChanged());
   }
 
   save(): Promise<any> {

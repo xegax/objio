@@ -1,6 +1,6 @@
-import { text } from 'd3-request';
 import { Encryptor } from '../common/encryptor';
 import * as axios from 'axios';
+import { isBrowser, isNode } from './env';
 
 export interface RequestArgs {
   url: string;
@@ -96,9 +96,9 @@ class RequestorImpl implements Requestor {
     if (postData != null && typeof postData != 'string')
       postData = JSON.stringify(postData);
 
-    const headers = {
-      'Cookie': Object.keys(this.cookie).map(key => [key, this.cookie[key]].join('=')).join('; ')
-    };
+    const headers: Object = {};
+    if (isNode())
+      headers['Cookie'] = Object.keys(this.cookie).map(key => [key, this.cookie[key]].join('=')).join('; ');
 
     if (postData)
       return (

@@ -116,7 +116,7 @@ export class Table extends TableBase {
       pushCells: (cells: Cells) => this.pushCells(cells)
     });
 
-    this.holder.setEventHandler({
+    this.holder.addEventHandler({
       onLoaded: () => {
         return (
           openDB(this.holder.getDBPath())
