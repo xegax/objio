@@ -2,6 +2,7 @@ import {
   OBJIOItem,
   SERIALIZER
 } from '../../index';
+import { Promise } from 'bluebird';
 
 export interface ColumnAttr {
   name: string;
@@ -40,8 +41,13 @@ export interface RemoveRowsArgs {
   rowIds: Array<string>;
 }
 
+export function inRange(idx: number, range: Range): boolean {
+  return idx >= range.first && idx < range.first + range.count;
+}
+
 export type Columns = Array<ColumnAttr>;
-export type Cells = Array<Array<string>>;
+export type Row = Array<string>;
+export type Cells = Array<Row>;
 
 export class Table extends OBJIOItem {
   protected table: string;
@@ -49,8 +55,6 @@ export class Table extends OBJIOItem {
   protected idColumn: string = 'row_uid';
 
   protected totalRowsNum: number = 0;
-
-  private selRowsRange: Range = { first: 0, count: 0 };
 
   constructor(args?: TableArgs) {
     super();
@@ -104,10 +108,6 @@ export class Table extends OBJIOItem {
 
   getColumns(): Array<ColumnAttr> {
     return this.columns;
-  }
-
-  getSelRowsRange(): Range {
-    return this.selRowsRange;
   }
 
   loadCells(rowsRange: Range): Promise<Cells> {

@@ -91,9 +91,10 @@ export interface MethodsToInvoke {
 }
 
 export interface OBJIOEventHandler {
-  onLoaded(): Promise<any>;
+  onLoad(): Promise<any>;
   onCreate(): Promise<any>;
-  onObjChanged(): void;
+  onObjChange(): void;
+  onDelete(): Promise<any>;
 }
 
 export class OBJIOItemHolder extends Publisher {
@@ -139,15 +140,19 @@ export class OBJIOItemHolder extends Publisher {
   }
 
   onLoaded(): Promise<any> {
-    return Promise.all(this.eventHandler.filter(item => item.onLoaded).map(handler => handler.onLoaded()));
+    return Promise.all(this.eventHandler.filter(item => item.onLoad).map(handler => handler.onLoad()));
   }
 
   onCreate(): Promise<any> {
     return Promise.all(this.eventHandler.filter(item => item.onCreate).map(handler => handler.onCreate()));
   }
 
+  onDelete(): Promise<any> {
+    return Promise.all(this.eventHandler.filter(item => item.onDelete).map(handler => handler.onDelete()));
+  }
+
   onObjChanged(): void {
-    this.eventHandler.filter(item => item.onObjChanged).map(handler => handler.onObjChanged());
+    this.eventHandler.forEach(handler => handler.onObjChange && handler.onObjChange());
   }
 
   save(): Promise<any> {

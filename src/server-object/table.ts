@@ -135,7 +135,7 @@ export class Table extends TableBase {
     });
 
     this.holder.addEventHandler({
-      onLoaded: () => {
+      onLoad: () => {
         return (
           this.openDB()
           .then(db => {
