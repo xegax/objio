@@ -17,7 +17,7 @@ describe('server Table', () => {
       ]
     });
     t.holder.getDBPath = () => 'test.sqlite3';
-    await t.holder.getEventHandler().onCreate();
+    await t.holder.getEventHandler()[0].onCreate();
 
     expect(existsSync('test.sqlite3')).eq(true, 'test.sqlite3 file must exists');
   });

@@ -4,7 +4,10 @@ import {
   Range,
   Cells,
   Columns,
-  NameType
+  ColumnAttr,
+  UpdateRowArgs,
+  PushRowArgs,
+  RemoveRowsArgs
 } from '../client-object/table';
 import { Database } from 'sqlite3';
 import { SERIALIZER, EXTEND } from '../objio/item';
@@ -40,6 +43,7 @@ function exec(db: Database, sql: string): Promise<any> {
       if (!err) {
         resolve();
       } else {
+        console.log('error at', sql);
         reject(err);
       }
     });
@@ -52,6 +56,7 @@ function run(db: Database, sql: string, params: Array<any>): Promise<any> {
       if (!err) {
         resolve();
       } else {
+        console.log('error at', sql);
         reject(err);
       }
     });
@@ -80,13 +85,22 @@ function get<T = Object>(db: Database, sql: string): Promise<T> {
 
 function createTable(db: Database, table: string, columns: Columns): Promise<any> {
   const sql = columns.map(column => {
-    return `${column.name} ${column.type}`;
+    let value = `${column.name} ${column.type}`;
+    if (column.notNull)
+      value += ' NOT NULL';
+    if (column.primary)
+      value += ' PRIMARY KEY';
+    if (column.autoInc)
+      value += ' AUTOINCREMENT';
+    if (column.unique)
+      value += ' UNIQUE';
+    return value;
   }).join(', ');
   return exec(db, `create table ${table} (${sql})`);
 }
 
 function loadTableInfo(db: Database, table: string): Promise<Columns> {
-  return all<NameType>(db, `pragma table_info(${table})`).then(res => {
+  return all<ColumnAttr>(db, `pragma table_info(${table})`).then(res => {
     return res.map(row => ({name: row['name'], type: row['type']}));
   });
 }
@@ -96,15 +110,17 @@ function loadRowsCount(db: Database, table: string): Promise<number> {
     .then(res => res.count);
 }
 
-function insert(db: Database, table: string, columns: Array<string>, cells: Cells): Promise<any> {
-  const valsHolder = cells.map(row => `(${row.map(() => '?').join(', ')})`).join(', ');
+function insert(db: Database, table: string, values: {[col: string]: Array<string>}): Promise<any> {
+  const cols = Object.keys(values);
+  const valsHolder = cols.map(() => '?').join(', ');
+  const allValsHolder = values[cols[0]].map(() => `( ${valsHolder} )`).join(', ');
 
-  const values = [];
-  cells.forEach(row => {
-    values.push(...row);
+  const valuesArr = [];
+  cols.forEach(col => {
+    valuesArr.push(...values[col]);
   });
-  const sql = `insert into ${table}(${columns.join(',')}) VALUES ${valsHolder};`;
-  return run(db, sql, values);
+  const sql = `insert into ${table}(${cols.join(',')}) values ${allValsHolder};`;
+  return run(db, sql, valuesArr);
 }
 
 export class Table extends TableBase {
@@ -113,13 +129,15 @@ export class Table extends TableBase {
 
     this.holder.setMethodsToInvoke({
       loadCells: (range: Range) => this.loadCells(range),
-      pushCells: (cells: Cells) => this.pushCells(cells)
+      pushCells: (cells: PushRowArgs) => this.pushCells(cells),
+      updateCells: (args: UpdateRowArgs) => this.updateCells(args),
+      removeRows: (args: RemoveRowsArgs) => this.removeRows(args)
     });
 
     this.holder.addEventHandler({
       onLoaded: () => {
         return (
-          openDB(this.holder.getDBPath())
+          this.openDB()
           .then(db => {
             return Promise.all([
               loadTableInfo(db, this.table),
@@ -134,7 +152,7 @@ export class Table extends TableBase {
       },
       onCreate: () => {
         return (
-          openDB(this.holder.getDBPath())
+          this.openDB()
           .then(db => createTable(db, this.table, this.columns))
         );
       }
@@ -142,8 +160,11 @@ export class Table extends TableBase {
   }
 
   loadCells(range: Range): Promise<Cells> {
+    if (!Number.isFinite(+range.count) || !Number.isFinite(+range.first))
+      throw `loadCells invalid arguments`;
+
     return (
-      openDB(this.holder.getDBPath())
+      this.openDB()
       .then(db => {
         return all<Object>(db, `select * from ${this.table} limit ${range.count} offset ${range.first}`);
       }).then(rows => {
@@ -152,17 +173,53 @@ export class Table extends TableBase {
     );
   }
 
-  pushCells(cells: Cells): Promise<number> {
+  pushCells(args: PushRowArgs): Promise<number> {
+    const values = {...args.values};
+    delete values[this.getIdColumn()];
+
     let db: Database;
     return (
-      openDB(this.holder.getDBPath())
+      this.openDB()
       .then(dbobj => db = dbobj)
-      .then(() => insert(db, this.table, this.columns.map(col => col.name), cells))
-      .then(() => loadRowsCount(db, this.table))
+      .then(() => insert(db, this.table, values))
+      .then(() => this.updateRowNum(db))
+    );
+  }
+
+  removeRows(args: RemoveRowsArgs): Promise<number> {
+    const holders = args.rowIds.map(() => `${this.getIdColumn()} = ?`).join(' or ');
+    let db: Database;
+    return (
+      this.openDB()
+      .then(dbTmp => (db = dbTmp) && run(dbTmp, `delete from ${this.table} where ${holders}`, args.rowIds))
+      .then(() => this.updateRowNum(db))
+    );
+  }
+
+  private openDB(): Promise<Database> {
+    return openDB(this.holder.getDBPath());
+  }
+
+  private updateRowNum(db: Database): Promise<number> {
+    return (
+      loadRowsCount(db, this.table)
       .then(rows => {
         this.totalRowsNum = rows;
         this.holder.save();
         return rows;
+      })
+    );
+  }
+
+  updateCells(args: UpdateRowArgs): Promise<void> {
+    return (
+      this.openDB()
+      .then(db => {
+        const set = Object.keys(args.values).map(col => {
+          return `${col}=?`;
+        }).join(', ');
+        const values = Object.keys(args.values).map(col => args.values[col]);
+        return run(db, `update ${this.table} set ${set} where ${this.getIdColumn()}`, [...values, args.rowId]);
       })
     );
   }
