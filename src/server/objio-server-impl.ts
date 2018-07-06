@@ -86,7 +86,7 @@ class RestrictionPolicy {
     return sess;
   }
 
-  addJsonHandler<GET, POST, COOKIE = Cookies>( accessType: AccessType,
+  addJsonHandler<GET, POST>( accessType: AccessType,
                                                url: string,
                                                handler: Handler<GET, POST, Cookies>,
                                                addOnClose?: (handler: () => void) => void) {

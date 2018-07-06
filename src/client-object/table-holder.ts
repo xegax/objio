@@ -1,34 +1,13 @@
 import { Table, TableArgs, Cells, Range, Row, inRange } from './table';
 import { SERIALIZER, OBJIOItem } from '../objio/item';
-
-class Promise2<T> implements Promise<T> {
-  private prom: Promise<any>;
-  private isCancel: boolean;
-
-  constructor(prom: Promise<any>) {
-    this.prom = prom;
-  }
-
-  then<TResult>(
-    onfulfilled?: (value: T) => TResult | PromiseLike<TResult>,
-    onrejected?: (reason: any) => TResult | PromiseLike<TResult>): Promise<TResult> {
-    return this.prom.then(onfulfilled, onrejected);
-  }
-
-  catch(onrejected?: (reason: any) => T | void | PromiseLike<T>): Promise<T> {
-    return this.prom.catch(onrejected);
-  }
-
-  cancel(): void {
-    this.isCancel = true;
-  }
-}
+import { ExtPromise } from '../common/promise';
 
 export class TableHolder extends OBJIOItem {
   private cells: Cells = [];
-  private table: Table;
+  protected table: Table;
+  private columns: Array<string> = [];
   private selRowsRange: Range = { first: 0, count: 1000 };
-  private loadingPromise: Promise<Row> = null;
+  private cellsLoading: ExtPromise<void> = null;
 
   constructor(args?: TableArgs) {
     super();
@@ -55,14 +34,13 @@ export class TableHolder extends OBJIOItem {
     });
   }
 
-  private updateCells(): Promise<Cells> {
-    return new Promise((resolve, reject) => {
+  private updateCells(): ExtPromise<Cells> {
+    return ExtPromise.resolve<Cells>(
       this.table.loadCells(this.selRowsRange)
       .then((cells: Cells) => {
-        if (resolve)
         return this.cells = cells;
-      });
-    });
+      })
+    );
   }
 
   getSelRowsRange(): Range {
@@ -75,18 +53,24 @@ export class TableHolder extends OBJIOItem {
     };
   }
 
-  getRowOrLoad(rowIdx: number): Promise<Row> | Row {
-    if (!this.loadingPromise) {
+  getOrLoadRow(rowIdx: number): ExtPromise<void> | Row {
+    if (!this.cellsLoading) {
       const row = this.cells[rowIdx - this.selRowsRange.first];
       if (row)
         return row;
     }
 
-    if (inRange(rowIdx, this.selRowsRange) && this.loadingPromise)
-      return this.loadingPromise;
+    if (inRange(rowIdx, this.selRowsRange) && this.cellsLoading)
+      return this.cellsLoading;
 
     this.selRowsRange.first = Math.max(0, Math.round(rowIdx - this.selRowsRange.count / 2));
-    this.loadingPromise = this.updateCells().then(cells => null);
+
+    if (this.cellsLoading)
+      this.cellsLoading.cancel();
+
+    return this.cellsLoading = this.updateCells().then(() => {
+      this.cellsLoading = null;
+    });
   }
 
   getCells(): Cells {
@@ -99,6 +83,7 @@ export class TableHolder extends OBJIOItem {
 
   static TYPE_ID = 'TableHolder';
   static SERIALIZE: SERIALIZER = () => ({
-    table: {type: 'object'}
+    table: {type: 'object'},
+    columns: {type: 'json'}
   });
 }

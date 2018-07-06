@@ -1,2 +1,7 @@
-export const isBrowser = new Function('try {return this===window;} catch(e) { return false;}');
-export const isNode = new Function('try {return this===global;} catch(e) {return false;}');
+export function isNode(): boolean {
+  try {
+    return process != null;
+  } catch (e) {
+    return false;
+  }
+}

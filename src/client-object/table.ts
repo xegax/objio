@@ -2,7 +2,18 @@ import {
   OBJIOItem,
   SERIALIZER
 } from '../../index';
-import { Promise } from 'bluebird';
+
+export interface ValueCond {
+  column: string;
+  value: string;
+}
+
+export interface CompoundCond {
+  values: Array<Condition>;
+  op: 'or' | 'and';
+}
+
+export type Condition = ValueCond | CompoundCond;
 
 export interface ColumnAttr {
   name: string;
@@ -23,6 +34,12 @@ export interface TableArgs {
   // idColumn not defined - we will try to create and insert idColumn = 'row-uid' or 'row-uid-%%%%%' 
 }
 
+export interface SubtableAttrs {
+  sort: Array<{column: string, dir: string}>;
+  cols: Array<string>;
+  filter?: Condition;
+}
+
 export interface Range {
   first: number;
   count: number;
@@ -39,6 +56,10 @@ export interface UpdateRowArgs {
 
 export interface RemoveRowsArgs {
   rowIds: Array<string>;
+}
+
+export interface LoadCellsArgs extends Range {
+  table?: string;
 }
 
 export function inRange(idx: number, range: Range): boolean {
@@ -110,8 +131,8 @@ export class Table extends OBJIOItem {
     return this.columns;
   }
 
-  loadCells(rowsRange: Range): Promise<Cells> {
-    return this.holder.invokeMethod('loadCells', rowsRange);
+  loadCells(args: LoadCellsArgs): Promise<Cells> {
+    return this.holder.invokeMethod('loadCells', args);
   }
 
   pushCells(args: PushRowArgs): Promise<number> {
@@ -122,7 +143,7 @@ export class Table extends OBJIOItem {
     return this.holder.invokeMethod('updateCell', args);
   }
 
-  removeRows(args: RemoveRowsArgs) {
+  removeRows(args: RemoveRowsArgs): Promise<any> {
     return this.holder.invokeMethod('removeRows', args);
   }
 

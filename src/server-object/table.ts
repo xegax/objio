@@ -7,12 +7,22 @@ import {
   ColumnAttr,
   UpdateRowArgs,
   PushRowArgs,
-  RemoveRowsArgs
+  RemoveRowsArgs,
+  SubtableAttrs,
+  LoadCellsArgs,
+  Condition,
+  CompoundCond
 } from '../client-object/table';
 import { Database } from 'sqlite3';
 import { SERIALIZER, EXTEND } from '../objio/item';
+import { ValueCond } from '../client-object/table';
 
 let db: Database;
+
+interface CreateSubtableArgs {
+  table: string;
+  attrs: SubtableAttrs;
+}
 
 function srPromise(db: Database, callback: (resolve, reject) => void): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -63,9 +73,9 @@ function run(db: Database, sql: string, params: Array<any>): Promise<any> {
   });
 }
 
-function all<T = Object>(db: Database, sql: string): Promise<Array<T>> {
+function all<T = Object>(db: Database, sql: string, params?: Array<any>): Promise<Array<T>> {
   return srPromise(db, (resolve, reject) => {
-    db.all(sql, (err, rows: Array<T>) => {
+    db.all(sql, params || [], (err, rows: Array<T>) => {
       if (err)
         return reject(err);
       resolve(rows);
@@ -81,6 +91,22 @@ function get<T = Object>(db: Database, sql: string): Promise<T> {
       resolve(row);
     });
   });
+}
+
+export function getCompSqlCondition(cond: CompoundCond): string {
+  return cond.values.map(cond => {
+    return `( ${getSqlCondition(cond)} )`;
+  }).join(` ${cond.op} `);
+}
+
+export function getSqlCondition(cond: Condition): string {
+  const comp = cond as CompoundCond;
+
+  if (comp.op && comp.values && comp.values.length)
+    return getCompSqlCondition(comp);
+
+  const value = cond as ValueCond;
+  return `${value.column}="${value.value}"`;
 }
 
 function createTable(db: Database, table: string, columns: Columns): Promise<any> {
@@ -159,14 +185,12 @@ export class Table extends TableBase {
     });
   }
 
-  loadCells(range: Range): Promise<Cells> {
-    if (!Number.isFinite(+range.count) || !Number.isFinite(+range.first))
-      throw `loadCells invalid arguments`;
-
+  loadCells(args: LoadCellsArgs): Promise<Cells> {
+    const table = args.table || this.table;
     return (
       this.openDB()
       .then(db => {
-        return all<Object>(db, `select * from ${this.table} limit ${range.count} offset ${range.first}`);
+        return all<Object>(db, `select * from ${table} limit ? offset ?`, [args.count, args.first]);
       }).then(rows => {
         return rows.map(row => Object.keys(row).map(key => row[key]));
       })
@@ -193,6 +217,17 @@ export class Table extends TableBase {
       this.openDB()
       .then(dbTmp => (db = dbTmp) && run(dbTmp, `delete from ${this.table} where ${holders}`, args.rowIds))
       .then(() => this.updateRowNum(db))
+    );
+  }
+
+  createSubtable(args: CreateSubtableArgs): Promise<any> {
+    const cols = args.attrs.cols.join(', ');
+    const cond = getSqlCondition(args.attrs.filter);
+    const where = cond ? ` where ${cond}` : '';
+
+    return (
+      openDB(this.holder.getDBPath()).
+      then(db => exec(db, `create temp table ${args.table} as select ${cols} from ${this.table} ${where}`))
     );
   }
 

@@ -1,6 +1,6 @@
 import { Encryptor } from '../common/encryptor';
 import * as axios from 'axios';
-import { isBrowser, isNode } from './env';
+import  * as env from './env';
 
 export interface RequestArgs {
   url: string;
@@ -97,7 +97,7 @@ class RequestorImpl implements Requestor {
       postData = JSON.stringify(postData);
 
     const headers: Object = {};
-    if (isNode())
+    if (env.isNode())
       headers['Cookie'] = Object.keys(this.cookie).map(key => [key, this.cookie[key]].join('=')).join('; ');
 
     if (postData)

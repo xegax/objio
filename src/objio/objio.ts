@@ -203,7 +203,8 @@ export class OBJIO {
     return obj as any as T;
   }
 
-  async loadObject<T extends OBJIOItem>(id: string): Promise<T> {
+  async loadObject<T extends OBJIOItem>(id?: string): Promise<T> {
+    id = id || '0';
     const objsMap = await this.store.readObjects(id);
 
     const loadObjectImpl = async (objId: string) => {
