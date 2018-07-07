@@ -154,8 +154,8 @@ export class Table extends TableBase {
     super(args);
 
     this.holder.setMethodsToInvoke({
-      loadCells: (range: Range) => this.loadCells(range),
-      pushCells: (cells: PushRowArgs) => this.pushCells(cells),
+      loadCells: (args: LoadCellsArgs) => this.loadCells(args),
+      pushCells: (args: PushRowArgs) => this.pushCells(args),
       updateCells: (args: UpdateRowArgs) => this.updateCells(args),
       removeRows: (args: RemoveRowsArgs) => this.removeRows(args)
     });

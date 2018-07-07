@@ -2,6 +2,7 @@
 {
 	"editor.tabSize": 2,
 	"files.exclude": {
+		"**/build": true,
 		"**/.git": true,
 		"**/.DS_Store": true,
 		"**/.tscache": true,
@@ -12,8 +13,8 @@
 		"src/**/*.d.ts": true,
 		"test/**/*.js": true,
 		"test/**/*.js.map": true,
-		"index.js": true,
-		"index.js.map": true,
-		"index.d.ts": true
+		"*.js": true,
+		"*.js.map": true,
+		"*.d.ts": true
 	}
 }

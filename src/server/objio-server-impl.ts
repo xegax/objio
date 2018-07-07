@@ -240,6 +240,21 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     baseUrl: args.baseUrl || '/handler/objio/'
   }));
 
+  srv.addDataHandler<PrjData & {id: string}>('write', 'send-file', async (params, done, error) => {
+    const { store } = await getPrj(params.get, args.factory, prjsDir);
+    if (params.post) {
+      const obj = store.getOBJIO().getObject(params.get.id);
+      if (!obj)
+        return error('object not found');
+
+      const methods = obj.holder.getMethodsToInvoke();
+      if ('send-file' in methods)
+        methods['send-file']({ data: params.post, offs: params.offs });
+    } else {
+      done('ok');
+    }
+  });
+
   srv.addJsonHandler<PrjData, CreateObjectsArgs>('write', 'create-object', async (params) => {
     const { store } = await getPrj(params.get, args.factory, prjsDir);
     params.done(await store.createObjects(params.post));

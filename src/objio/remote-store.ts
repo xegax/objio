@@ -52,6 +52,14 @@ export class OBJIORemoteStore implements OBJIOStore {
   }
 
   invokeMethod(id: string, method: string, args: Object): Promise<any> {
+    if (args instanceof File) {
+      return this.req.getData({
+        url: this.getUrl('send-file'),
+        params: {id},
+        postData: args
+      });
+    }
+
     return this.req.getJSON({
       url: this.getUrl('invoke-method'),
       postData: {id, method, args}

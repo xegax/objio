@@ -93,7 +93,7 @@ class RequestorImpl implements Requestor {
   getData(args: RequestArgs): Promise<string> {
     const url = makeUrl(args.url, args.params);
     let postData = args.postData;
-    if (postData != null && typeof postData != 'string')
+    if (postData != null && typeof postData != 'string' && !(postData instanceof File))
       postData = JSON.stringify(postData);
 
     const headers: Object = {};
