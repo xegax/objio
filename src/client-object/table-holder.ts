@@ -1,11 +1,27 @@
-import { Table, TableArgs, Cells, Range, Row, inRange } from './table';
+import {
+  Table,
+  TableArgs,
+  Cells,
+  Range,
+  Row,
+  inRange,
+  ColumnAttr,
+  PushRowArgs,
+  RemoveRowsArgs,
+  SubtableAttrs,
+  SortPair,
+  LoadCellsArgs
+} from './table';
 import { SERIALIZER, OBJIOItem } from '../objio/item';
 import { ExtPromise } from '../common/promise';
 
-export class TableHolder extends OBJIOItem {
+export class TableHolder<T extends Table = Table> extends OBJIOItem {
   private cells: Cells = [];
-  protected table: Table;
+  protected table: T;
+
   private columns: Array<string> = [];
+  private sort: Array<SortPair> = [];
+
   private selRowsRange: Range = { first: 0, count: 1000 };
   private cellsLoading: ExtPromise<void> = null;
 
@@ -13,17 +29,26 @@ export class TableHolder extends OBJIOItem {
     super();
 
     this.holder.addEventHandler({
-      onLoad: () => {
-        this.subscribeOnTable();
-        return this.updateCells();
-      },
-      onCreate: () => {
-        this.subscribeOnTable();
-        return Promise.resolve();
-      }
+      onLoad: () => this.onLoad(),
+      onCreate: () => this.onCreate(),
+      onObjChange: () => this.updateCells().then(() => this.holder.notify())
     });
 
-    this.table = new Table(args);
+    this.table = new Table(args) as T;
+    if (!args)
+      return;
+
+    this.columns = args.columns.map(col => col.name);
+  }
+
+  protected onLoad(): Promise<any> {
+    this.subscribeOnTable();
+    return this.updateCells();
+  }
+
+  protected onCreate(): Promise<any> {
+    this.subscribeOnTable();
+    return Promise.resolve();
   }
 
   private subscribeOnTable() {
@@ -34,13 +59,15 @@ export class TableHolder extends OBJIOItem {
     });
   }
 
+  protected loadCells(args: LoadCellsArgs): Promise<Cells> {
+    return this.holder.invokeMethod('loadCells', args);
+  }
+
   private updateCells(): ExtPromise<Cells> {
-    return ExtPromise.resolve<Cells>(
-      this.table.loadCells(this.selRowsRange)
+    return ExtPromise.resolve(this.loadCells(this.selRowsRange)
       .then((cells: Cells) => {
         return this.cells = cells;
-      })
-    );
+      }));
   }
 
   getSelRowsRange(): Range {
@@ -53,7 +80,27 @@ export class TableHolder extends OBJIOItem {
     };
   }
 
-  getOrLoadRow(rowIdx: number): ExtPromise<void> | Row {
+  pushCells(args: PushRowArgs): Promise<number> {
+    return this.table.pushCells(args);
+  }
+
+  getTable(): string {
+    return this.table.getTable();
+  }
+
+  getColumns(): Array<ColumnAttr> {
+    return this.table.getColumns();
+  }
+
+  removeRows(args: RemoveRowsArgs): Promise<any> {
+    return this.table.removeRows(args);
+  }
+
+  getIdColumn(): string {
+    return this.table.getIdColumn();
+  }
+
+  getOrLoadRow(rowIdx: number): Promise<void> | Row {
     if (!this.cellsLoading) {
       const row = this.cells[rowIdx - this.selRowsRange.first];
       if (row)
@@ -77,13 +124,27 @@ export class TableHolder extends OBJIOItem {
     return this.cells;
   }
 
-  get(): Table {
-    return this.table;
+  getTotalRowsNum(): number {
+    return this.table.getTotalRowsNum();
+  }
+
+  updateSubtable(args: Partial<SubtableAttrs>): Promise<any> {
+    this.sort = args.sort || this.sort;
+    this.columns = args.cols || this.columns;
+    return this.holder.invokeMethod('updateSubtable', args).then(() => {
+      this.updateCells();
+      this.holder.save();
+    });
+  }
+
+  getSort(): Array<SortPair> {
+    return this.sort;
   }
 
   static TYPE_ID = 'TableHolder';
   static SERIALIZE: SERIALIZER = () => ({
     table: {type: 'object'},
-    columns: {type: 'json'}
+    columns: {type: 'json'},
+    sort: {type: 'json'}
   });
 }

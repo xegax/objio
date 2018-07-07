@@ -19,7 +19,7 @@ import { ValueCond } from '../client-object/table';
 
 let db: Database;
 
-interface CreateSubtableArgs {
+export interface CreateSubtableArgs {
   table: string;
   attrs: SubtableAttrs;
 }
@@ -37,11 +37,11 @@ function openDB(file: string): Promise<Database> {
     return Promise.resolve(db);
 
   return new Promise((resolve, reject) => {
-    const newdb = new Database(file, (err => {
+    db = new Database(file, (err => {
       if (!err) {
-        resolve(newdb);
+        resolve(db);
       } else {
-        reject(newdb);
+        reject(db);
       }
     }));
   });
@@ -221,13 +221,14 @@ export class Table extends TableBase {
   }
 
   createSubtable(args: CreateSubtableArgs): Promise<any> {
-    const cols = args.attrs.cols.join(', ');
-    const cond = getSqlCondition(args.attrs.filter);
+    const cols = (args.attrs.cols && args.attrs.cols.length) ? args.attrs.cols.join(', ') : '*';
+    const cond = args.attrs.filter ? getSqlCondition(args.attrs.filter) : null;
     const where = cond ? ` where ${cond}` : '';
+    const orderBy = args.attrs.sort && args.attrs.sort.length ? `order by ${args.attrs.sort[0].column} ${args.attrs.sort[0].dir}` : '';
 
     return (
-      openDB(this.holder.getDBPath()).
-      then(db => exec(db, `create temp table ${args.table} as select ${cols} from ${this.table} ${where}`))
+      this.openDB().
+      then(db => exec(db, `create temp table ${args.table} as select ${cols} from ${this.table} ${where} ${orderBy}`))
     );
   }
 

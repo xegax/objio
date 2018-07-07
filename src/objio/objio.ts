@@ -9,6 +9,7 @@ import { Timer } from '../common/timer';
 import { SerialPromise } from '../common/serial-promise';
 import { OBJIOArray } from './array';
 import {
+  ReadResult,
   OBJIOStore,
   CreateObjectsArgs
 } from './store';
@@ -203,38 +204,40 @@ export class OBJIO {
     return obj as any as T;
   }
 
-  async loadObject<T extends OBJIOItem>(id?: string): Promise<T> {
+  loadObject<T extends OBJIOItem>(id?: string): Promise<T> {
     id = id || '0';
-    const objsMap = await this.store.readObjects(id);
 
-    const loadObjectImpl = async (objId: string) => {
+    if (this.objectMap[id])
+      return Promise.resolve(this.objectMap[id] as T);
+
+    const loadObjectImpl = (objId: string, objsMap: ReadResult) => {
       const store = objsMap[objId];
       const objClass = this.factory.findItem(store.classId);
       let newObj: OBJIOItem;
 
       if (!(newObj = this.objectMap[objId])) {
-        const newObjOrPromise = objClass.create();
-        if (newObjOrPromise instanceof Promise) {
-          newObj = await newObjOrPromise;
-        } else {
-          newObj = newObjOrPromise;
-        }
-
+        newObj = objClass.create();
         this.initNewObject(newObj, objId, store.version);
       }
 
-      await objClass.loadStore({
+      Promise.resolve(objClass.loadStore({
         obj: newObj,
         store: store.json,
-        getObject: loadObjectImpl
+        getObject: (id: string) => loadObjectImpl(id, objsMap)
+      })).then(() => {
+        return newObj.holder.onLoaded();
       });
-      await newObj.holder.onLoaded();
-      newObj.holder.updateVersion(store.version);
 
+      newObj.holder.updateVersion(store.version);
       return newObj;
     };
 
-    return await loadObjectImpl(id) as T;
+    return (
+      this.store.readObjects(id)
+      .then(objsMap => {
+        return loadObjectImpl(id, objsMap) as T;
+      })
+    );
   }
 
   private updateTasks = new SerialPromise();
@@ -248,13 +251,10 @@ export class OBJIO {
   }
 
   private async updateObjectsImpl(versions: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
-    console.log('updateObjects before filter', versions);
     const objs = versions.filter(item => {
       const obj = this.objectMap[item.id];
       return obj == null || obj.getHolder().getVersion() != item.version;
     });
-
-    console.log('updateObjects', objs);
 
     const updateObject = async (item: { id: string, version: string }) => {
       const obj = this.objectMap[item.id];

@@ -64,7 +64,7 @@ export interface OBJIOItemClass {
   getRelObjIDS?(store: Object, replaceID?: (id: string) => string): GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
   invokeMethod?(obj: OBJIOItem, name: string, args: Object): Promise<any>;
-  create?(): OBJIOItem | Promise<OBJIOItem>;
+  create?(): OBJIOItem;
 }
 
 export interface OBJIOContext {
@@ -313,7 +313,7 @@ export class OBJIOItem {
     return arr;
   }
 
-  static create(): OBJIOItem | Promise<OBJIOItem> {
+  static create(): OBJIOItem {
     const objClass: OBJIOItemClass = this.getClass();
     return new (objClass as any as OBJItemConstructor)();
   }

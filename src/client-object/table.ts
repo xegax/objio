@@ -3,6 +3,11 @@ import {
   SERIALIZER
 } from '../../index';
 
+export interface SortPair {
+  column: string;
+  dir: 'asc' | 'desc';
+}
+
 export interface ValueCond {
   column: string;
   value: string;
@@ -35,7 +40,7 @@ export interface TableArgs {
 }
 
 export interface SubtableAttrs {
-  sort: Array<{column: string, dir: string}>;
+  sort: Array<SortPair>;
   cols: Array<string>;
   filter?: Condition;
 }

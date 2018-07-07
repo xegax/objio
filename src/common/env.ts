@@ -1,6 +1,6 @@
 export function isNode(): boolean {
   try {
-    return process != null;
+    return eval('process') != null;
   } catch (e) {
     return false;
   }

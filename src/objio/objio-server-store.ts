@@ -40,15 +40,7 @@ export class OBJIOServerStore implements OBJIOStore {
     Object.keys(ids).forEach(id => {
       const item = ids[id];
       const objClass = this.factory.findItem(item.classId);
-      const objOrPromise = this.objio.getObject(id) || objClass.create();
-
-      if (objOrPromise instanceof OBJIOItem) {
-        objsMap[id] = objOrPromise;
-      } else {
-        objOrPromise.then(obj => objsMap[id] = obj);
-        objOrPromise.catch(err => console.log(err));
-        tasks.push(objOrPromise);
-      }
+      objsMap[id] = this.objio.getObject(id) || objClass.create();
 
       !firstId && (firstId = id);
     });
@@ -108,10 +100,10 @@ export class OBJIOServerStore implements OBJIOStore {
       });
       if (task instanceof Promise) {
         tasks.push(task.then(() => {
-          obj.holder.save();
+          return obj.holder.save();
         }));
       } else {
-        obj.holder.save();
+        tasks.push(obj.holder.save());
       }
     });
 
