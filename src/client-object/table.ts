@@ -31,8 +31,8 @@ export interface ColumnAttr {
 
 export interface TableArgs {
   table: string;
-  columns: Array<ColumnAttr>;
-
+  columns?: Array<ColumnAttr>;
+  srcId?: string;   // FileObject id
   idColumn?: string;
   // idColumn defined, column is not found - create primary key column with name = idColumn
   // idColumn defined, column is found - this column will be primary key
@@ -79,45 +79,16 @@ export class Table extends OBJIOItem {
   protected table: string;
   protected columns: Columns = Array<ColumnAttr>();
   protected idColumn: string = 'row_uid';
+  protected valid: number = 0;
 
   protected totalRowsNum: number = 0;
 
-  constructor(args?: TableArgs) {
-    super();
+  isValid(): boolean {
+    return !!this.valid;
+  }
 
-    if (!args)
-      return;
-
-    this.table = args.table;
-    this.columns = args.columns.map(column => ({...column}));
-
-    let idCol: ColumnAttr;
-    if (!args.idColumn) {
-      while (idCol = this.findColumn(this.idColumn)) {
-        this.idColumn = 'row_uid_' + Math.round(Math.random() * 100000).toString(16);
-      }
-    } else {
-      this.idColumn = args.idColumn;
-      idCol = this.findColumn(args.idColumn);
-    }
-
-    if (!idCol) {
-      const idCol: ColumnAttr = {
-        name: this.idColumn,
-        type: 'INTEGER',
-        autoInc: true,
-        notNull: true,
-        primary: true,
-        unique: true
-      };
-      this.columns.splice(0, 0, idCol);
-    } else {
-      idCol.type = 'INTEGER';
-      idCol.autoInc = true;
-      idCol.notNull = true;
-      idCol.primary = true;
-      idCol.unique = true;
-    }
+  execute(args: TableArgs): Promise<any> {
+    return this.holder.invokeMethod('execute', args);
   }
 
   findColumn(name: string): ColumnAttr {
@@ -158,9 +129,11 @@ export class Table extends OBJIOItem {
 
   static TYPE_ID = 'Table';
   static SERIALIZE: SERIALIZER = () => ({
+    'valid': { type: 'integer'},
     'table': { type: 'string' },
     'columns': { type: 'json' },
     'totalRowsNum': { type: 'integer' },
-    'idColumn': { type: 'integer' }
+    'idColumn': { type: 'integer' },
+    'srcId': {type: 'string'}
   });
 }

@@ -69,7 +69,7 @@ class SavingQueue {
     const queue = this.queue;
     this.queue = [];
 
-    console.log('saving started', queue.length);
+    // console.log('saving started', queue.length);
     const objs = await this.store.writeObjects(queue.map(item => {
       const holder = item.getHolder();
       return {
@@ -85,7 +85,7 @@ class SavingQueue {
     });
 
     this.objio.notifyOnSave(queue);
-    console.log('saving complete');
+    // console.log('saving complete');
   }
 }
 
@@ -149,7 +149,8 @@ export class OBJIO {
         save: obj => this.saveImpl(obj),
         create: obj => this.createObject(obj),
         invoke: (obj, name, args) => this.invokeMethod(obj, name, args),
-        context: () => this.context
+        context: () => this.context,
+        getObject: id => this.loadObject(id)
       }
     });
     this.objectMap[objId] = obj;

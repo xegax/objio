@@ -7,8 +7,8 @@ export class TableHolder extends TableHolderBase<Table> {
   private subtable: string = '';
   private tableCounter: number = 0;
 
-  constructor(args?: TableArgs) {
-    super(args);
+  constructor() {
+    super();
 
     this.holder.setMethodsToInvoke({
       updateSubtable: (args: SubtableAttrs) => this.updateSubtable(args),

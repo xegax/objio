@@ -22,10 +22,10 @@ export class TableHolder<T extends Table = Table> extends OBJIOItem {
   private columns: Array<string> = [];
   private sort: Array<SortPair> = [];
 
-  private selRowsRange: Range = { first: 0, count: 1000 };
+  private selRowsRange: Range = { first: 0, count: 100 };
   private cellsLoading: ExtPromise<void> = null;
 
-  constructor(args?: TableArgs) {
+  constructor() {
     super();
 
     this.holder.addEventHandler({
@@ -34,11 +34,15 @@ export class TableHolder<T extends Table = Table> extends OBJIOItem {
       onObjChange: () => this.updateCells().then(() => this.holder.notify())
     });
 
-    this.table = new Table(args) as T;
-    if (!args)
-      return;
+    this.table = new Table() as T;
+  }
 
-    this.columns = args.columns.map(col => col.name);
+  execute(args: TableArgs): Promise<any> {
+    return this.table.execute(args);
+  }
+
+  isValid(): boolean {
+    return this.table.isValid();
   }
 
   protected onLoad(): Promise<any> {

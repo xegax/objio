@@ -8,7 +8,7 @@ describe('server Table', () => {
       unlinkSync('test.sqlite3');
   });
 
-  it('Table.create', async () => {
+  /*it('Table.create', async () => {
     const t: Table = new Table({
       table: 'Table1',
       columns: [
@@ -48,5 +48,5 @@ describe('server Table', () => {
       [20, 'twenty'],
       [30, 'thirty']
     ]);
-  });
+  });*/
 });

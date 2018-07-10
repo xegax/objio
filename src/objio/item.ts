@@ -75,6 +75,7 @@ export interface OBJIOContext {
 export interface OBJIOItemHolderOwner {
   save(obj: OBJIOItem): Promise<any>;
   create(obj: OBJIOItem): Promise<OBJIOItem>;
+  getObject(id: string): Promise<OBJIOItem>;
   invoke(obj: OBJIOItem, name: string, args: Object): Promise<any>;
   context(): OBJIOContext;
 }
@@ -167,6 +168,10 @@ export class OBJIOItemHolder extends Publisher {
       return Promise.reject<T>('owner not defined');
 
     return this.owner.create(obj) as Promise<T>;
+  }
+
+  getObject<T extends OBJIOItem>(id: string): Promise<T> {
+    return this.owner.getObject(id) as Promise<T>;
   }
 
   getJSON(fieldFilter?: FieldFilter): { [key: string]: number | string | Array<number | string> } {

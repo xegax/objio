@@ -6,14 +6,6 @@ export class FileObject extends FileObjectBase {
   constructor(args?: FileArgs) {
     super(args);
 
-    this.holder.addEventHandler({
-      onCreate: () => {
-        const fd = openSync(this.getPath(), 'w+');
-        closeSync(fd);
-        return Promise.resolve();
-      }
-    });
-
     this.holder.setMethodsToInvoke({
       'send-file': (args: {data: Buffer, offs: number}) => {
         const fd = openSync(this.getPath(), 'a+');

@@ -16,6 +16,9 @@ import {
 import { Database } from 'sqlite3';
 import { SERIALIZER, EXTEND } from '../objio/item';
 import { ValueCond } from '../client-object/table';
+import { FileObject } from './file-object';
+import { CSVReader, CSVRow } from '../common/csv-reader';
+import { start } from 'repl';
 
 let db: Database;
 
@@ -142,22 +145,27 @@ function insert(db: Database, table: string, values: {[col: string]: Array<strin
   const allValsHolder = values[cols[0]].map(() => `( ${valsHolder} )`).join(', ');
 
   const valuesArr = [];
-  cols.forEach(col => {
-    valuesArr.push(...values[col]);
-  });
+  const rowsNum = values[cols[0]].length;
+  for (let n = 0;  n < rowsNum; n++) {
+    cols.forEach(col => {
+      valuesArr.push(values[col][n]);
+    });
+  }
+
   const sql = `insert into ${table}(${cols.join(',')}) values ${allValsHolder};`;
   return run(db, sql, valuesArr);
 }
 
 export class Table extends TableBase {
-  constructor(args?: TableArgs) {
-    super(args);
+  constructor() {
+    super();
 
     this.holder.setMethodsToInvoke({
       loadCells: (args: LoadCellsArgs) => this.loadCells(args),
       pushCells: (args: PushRowArgs) => this.pushCells(args),
       updateCells: (args: UpdateRowArgs) => this.updateCells(args),
-      removeRows: (args: RemoveRowsArgs) => this.removeRows(args)
+      removeRows: (args: RemoveRowsArgs) => this.removeRows(args),
+      execute: (args: TableArgs) => this.execute(args)
     });
 
     this.holder.addEventHandler({
@@ -175,12 +183,104 @@ export class Table extends TableBase {
             this.totalRowsNum = res[1];
           })
         );
-      },
-      onCreate: () => {
-        return (
-          this.openDB()
-          .then(db => createTable(db, this.table, this.columns))
-        );
+      }
+    });
+  }
+
+  private readColumns(csv: FileObject): Promise<Array<ColumnAttr>> {
+    let cols: Array<ColumnAttr>;
+
+    const nextRow = (row: CSVRow) => {
+      cols = row.cols.map(col => ({
+        name: col,
+        type: 'TEXT'
+      }));
+      row.done();
+    };
+
+    return CSVReader.read(csv.getPath(), nextRow).then(() => cols);
+  }
+
+  private readRows(csv: FileObject, columns: Columns, startRow: number): Promise<void> {
+    let rows: Array<Array<string>> = [];
+
+    const flushRows = () => {
+      let pushArgs: PushRowArgs = {
+        values: {}
+      };
+
+      columns.forEach((col, i) => {
+        rows.forEach(row => {
+          const arr = pushArgs.values[col.name] || (pushArgs.values[col.name] = []);
+          arr.push(row[i]);
+        });
+      });
+
+      this.pushCells(pushArgs);
+      rows = [];
+    };
+
+    const nextRow = (row: CSVRow) => {
+      if (row.rowIdx < startRow)
+        return;
+
+      rows.push(row.cols);
+      if (rows.length > 2)
+        flushRows();
+    };
+
+    return (
+      CSVReader.read(csv.getPath(), nextRow)
+      .then(() => flushRows())
+    );
+  }
+
+  execute(args: TableArgs): Promise<any> {
+    this.table = args.table;
+    this.columns = (args.columns || []).map(column => ({...column}));
+
+    let idCol: ColumnAttr;
+    if (!args.idColumn) {
+      while (idCol = this.findColumn(this.idColumn)) {
+        this.idColumn = 'row_uid_' + Math.round(Math.random() * 100000).toString(16);
+      }
+    } else {
+      this.idColumn = args.idColumn;
+      idCol = this.findColumn(args.idColumn);
+    }
+
+    idCol = {
+      name: !idCol ? this.idColumn : idCol.name,
+      type: 'INTEGER',
+      autoInc: true,
+      notNull: true,
+      primary: true,
+      unique: true
+    };
+
+    let columns: Columns = [];
+    let task: Promise<any>;
+    if (args.srcId) {
+      task = this.holder.getObject<FileObject>(args.srcId)
+      .then(csv => this.readColumns(csv))
+      .then(cols => {
+        columns = cols;
+        this.columns = [idCol, ...cols];
+      });
+    } else {
+      this.columns.splice(0, 0, idCol);
+      task = Promise.resolve();
+    }
+
+    return task.then(() => this.openDB())
+    .then(db => createTable(db, this.table, this.columns))
+    .then(() => {
+      this.valid = 1;
+      this.holder.save();
+
+      if (args.srcId) {
+        this.holder.getObject<FileObject>(args.srcId)
+        .then((obj) => this.readRows(obj, columns, 1));
       }
     });
   }
