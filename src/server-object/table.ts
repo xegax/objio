@@ -196,15 +196,20 @@ export class Table extends TableBase {
         type: 'TEXT'
       }));
       row.done();
+      return Promise.resolve();
     };
 
     return CSVReader.read(csv.getPath(), nextRow).then(() => cols);
   }
 
-  private readRows(csv: FileObject, columns: Columns, startRow: number): Promise<void> {
+  private readRows(csv: FileObject, columns: Columns, startRow: number, flushPerRows: number): Promise<void> {
     let rows: Array<Array<string>> = [];
 
+    let rowsCount = 0;
     const flushRows = () => {
+      rowsCount += rows.length;
+      console.log('read', rowsCount);
+
       let pushArgs: PushRowArgs = {
         values: {}
       };
@@ -216,17 +221,22 @@ export class Table extends TableBase {
         });
       });
 
-      this.pushCells(pushArgs);
       rows = [];
+      console.log('start to flush');
+      return this.pushCells(pushArgs).then(() => {
+        console.log('flush finished\n\n');
+      });
     };
 
     const nextRow = (row: CSVRow) => {
       if (row.rowIdx < startRow)
-        return;
+        return Promise.resolve();
 
       rows.push(row.cols);
-      if (rows.length > 2)
-        flushRows();
+      if (rows.length > flushPerRows)
+        return flushRows();
+
+      return Promise.resolve();
     };
 
     return (
@@ -280,7 +290,7 @@ export class Table extends TableBase {
 
       if (args.srcId) {
         this.holder.getObject<FileObject>(args.srcId)
-        .then((obj) => this.readRows(obj, columns, 1));
+        .then((obj) => this.readRows(obj, columns, 1, 50));
       }
     });
   }

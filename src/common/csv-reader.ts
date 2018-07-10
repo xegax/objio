@@ -5,11 +5,7 @@ export interface CSVRow {
   cols: Array<string>;
   rowIdx: number;
   progress: number;     // 0 - 1
-  done(): void;
-}
-
-export interface Handler {
-  onNextRow(row: CSVRow): void;
+  done?(): void;
 }
 
 export class CSVReader {
@@ -42,41 +38,65 @@ export class CSVReader {
 
   private constructor() {}
 
-  static read(file: string, onNextRow: (row: CSVRow) => void): Promise<void> {
+  static read(file: string, onNextRow: (row: CSVRow) => Promise<void>): Promise<void> {
     const fileInfo = lstatSync(file);
     const rl = createInterface({ input: createReadStream(file) });
 
     let totalRead = 0;
     let rowIdx = 0;
     let closed = false;
-    let skip = 0;
+
+    let waitToNext: Array<CSVRow> = [];
+    let task: Promise<void>;
+    const nextLine = (resume?: () => void, resolve?: () => void) => {
+      if (task || closed)
+        return;
+
+      if (waitToNext.length == 0)
+        return resume && resume();
+
+      const [ row ] = waitToNext.splice(0, 1);
+      task = onNextRow({...row, done: () => {
+        closed = true;
+        rl.close();
+        resolve && resolve();
+      }});
+
+      task.then(() => {
+        if (closed)
+          return;
+
+        task = null;
+        nextLine(resume, resolve);
+      });
+    };
+
     return new Promise(resolve => {
       rl.on('line', (line: string) => {
-        if (closed) {
-          skip++;
+        if (closed)
           return;
-        }
 
         totalRead += line.length + 2;
         const progress = totalRead / fileInfo.size;
         const cols = CSVReader.parseRow(line);
-        onNextRow({
+        waitToNext.push({
           cols,
           progress,
-          rowIdx,
-          done: () => {
-            closed = true;
-            resolve();
-            rl.close();
-          }
+          rowIdx
         });
+
+        if (waitToNext.length > 50) {
+          rl.pause();
+          nextLine(() => {
+            rl.resume();
+          }, resolve);
+        }
+
         rowIdx++;
       });
 
       rl.on('close', () => {
-        console.log('skip', skip);
-        if (!closed)
-          resolve();
+        console.log('rows', rowIdx);
       });
     });
   }
