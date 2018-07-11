@@ -1,16 +1,21 @@
-import { createInterface } from 'readline';
-import { createReadStream, lstatSync } from 'fs';
+import { LineReader, Bunch, ReadArgs, ReadResult } from './line-reader';
 
-export interface CSVRow {
-  cols: Array<string>;
-  rowIdx: number;
-  progress: number;     // 0 - 1
-  done?(): void;
+export {
+  Bunch,
+  ReadArgs
+}
+
+export interface CSVBunch extends Bunch {
+  rows: Array<Array<string>>;
+}
+
+export interface CSVReadArgs extends ReadArgs {
+  onNextBunch(bunch: CSVBunch): void | Promise<any>;
 }
 
 export class CSVReader {
   static parseRow(row: string): Array<string> {
-    const cols = [];
+    const cols = Array<string>();
     let from = 0;
     let open = 0;
     for (let n = 0; n <= row.length; n++) {
@@ -38,66 +43,13 @@ export class CSVReader {
 
   private constructor() {}
 
-  static read(file: string, onNextRow: (row: CSVRow) => Promise<void>): Promise<void> {
-    const fileInfo = lstatSync(file);
-    const rl = createInterface({ input: createReadStream(file) });
-
-    let totalRead = 0;
-    let rowIdx = 0;
-    let closed = false;
-
-    let waitToNext: Array<CSVRow> = [];
-    let task: Promise<void>;
-    const nextLine = (resume?: () => void, resolve?: () => void) => {
-      if (task || closed)
-        return;
-
-      if (waitToNext.length == 0)
-        return resume && resume();
-
-      const [ row ] = waitToNext.splice(0, 1);
-      task = onNextRow({...row, done: () => {
-        closed = true;
-        rl.close();
-        resolve && resolve();
-      }});
-
-      task.then(() => {
-        if (closed)
-          return;
-
-        task = null;
-        nextLine(resume, resolve);
-      });
-    };
-
-    return new Promise(resolve => {
-      rl.on('line', (line: string) => {
-        if (closed)
-          return;
-
-        totalRead += line.length + 2;
-        const progress = totalRead / fileInfo.size;
-        const cols = CSVReader.parseRow(line);
-        waitToNext.push({
-          cols,
-          progress,
-          rowIdx
-        });
-
-        if (waitToNext.length > 50) {
-          rl.pause();
-          nextLine(() => {
-            rl.resume();
-          }, resolve);
-        }
-
-        rowIdx++;
-      });
-
-      rl.on('close', () => {
-        console.log('rows', rowIdx);
-      });
+  static read(args: CSVReadArgs): Promise<ReadResult> {
+    return LineReader.read({
+      ...args,
+      onNextBunch: res => {
+        const rows = res.lines.filter(line => line.trim().length > 0).map(line => CSVReader.parseRow(line));
+        return args.onNextBunch({...res, rows});
+      }
     });
   }
 }

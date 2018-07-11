@@ -22,12 +22,8 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "browser side tests",
-      "args": [
-        "--config=jasmine-node.json"
-      ],
-      "program": "${workspaceRoot}/node_modules/jasmine/bin/jasmine.js",
-      "cwd": "${workspaceRoot}"
+      "name": "test",
+      "program": "${workspaceFolder}/test.js"
     }
   ]
 }

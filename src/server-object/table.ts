@@ -1,7 +1,6 @@
 import {
   Table as TableBase,
   TableArgs,
-  Range,
   Cells,
   Columns,
   ColumnAttr,
@@ -17,8 +16,7 @@ import { Database } from 'sqlite3';
 import { SERIALIZER, EXTEND } from '../objio/item';
 import { ValueCond } from '../client-object/table';
 import { FileObject } from './file-object';
-import { CSVReader, CSVRow } from '../common/csv-reader';
-import { start } from 'repl';
+import { CSVReader, CSVBunch } from '../common/csv-reader';
 
 let db: Database;
 
@@ -190,58 +188,34 @@ export class Table extends TableBase {
   private readColumns(csv: FileObject): Promise<Array<ColumnAttr>> {
     let cols: Array<ColumnAttr>;
 
-    const nextRow = (row: CSVRow) => {
-      cols = row.cols.map(col => ({
+    const onNextBunch = (bunch: CSVBunch) => {
+      cols = bunch.rows[0].map(col => ({
         name: col,
         type: 'TEXT'
       }));
-      row.done();
-      return Promise.resolve();
+      bunch.done();
     };
 
-    return CSVReader.read(csv.getPath(), nextRow).then(() => cols);
+    return CSVReader.read({file: csv.getPath(), onNextBunch, linesPerBunch: 1}).then(() => cols);
   }
 
-  private readRows(csv: FileObject, columns: Columns, startRow: number, flushPerRows: number): Promise<void> {
-    let rows: Array<Array<string>> = [];
+  private readRows(csv: FileObject, columns: Columns, startRow: number, flushPerRows: number): Promise<any> {
+    const onNextBunch = (bunch: CSVBunch) => {
+      const rows = bunch.firstLineIdx == 0 ? bunch.rows.slice(1) : bunch.rows;
+      const values: {[col: string]: Array<string>} = {};
 
-    let rowsCount = 0;
-    const flushRows = () => {
-      rowsCount += rows.length;
-      console.log('read', rowsCount);
-
-      let pushArgs: PushRowArgs = {
-        values: {}
-      };
-
-      columns.forEach((col, i) => {
-        rows.forEach(row => {
-          const arr = pushArgs.values[col.name] || (pushArgs.values[col.name] = []);
-          arr.push(row[i]);
+      rows.forEach(row => {
+        row.forEach((v, i) => {
+          const col = values[columns[i].name] || (values[columns[i].name] = []);
+          col.push(v);
         });
       });
 
-      rows = [];
-      console.log('start to flush');
-      return this.pushCells(pushArgs).then(() => {
-        console.log('flush finished\n\n');
-      });
-    };
-
-    const nextRow = (row: CSVRow) => {
-      if (row.rowIdx < startRow)
-        return Promise.resolve();
-
-      rows.push(row.cols);
-      if (rows.length > flushPerRows)
-        return flushRows();
-
-      return Promise.resolve();
+      return this.pushCells({values});
     };
 
     return (
-      CSVReader.read(csv.getPath(), nextRow)
-      .then(() => flushRows())
+      CSVReader.read({file: csv.getPath(), onNextBunch})
     );
   }
 
