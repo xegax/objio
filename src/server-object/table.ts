@@ -211,7 +211,9 @@ export class Table extends TableBase {
         });
       });
 
-      return this.pushCells({values});
+      return this.pushCells({values}).then(() => {
+        this.state.setProgress(bunch.progress).save();
+      });
     };
 
     return (
@@ -259,12 +261,15 @@ export class Table extends TableBase {
     return task.then(() => this.openDB())
     .then(db => createTable(db, this.table, this.columns))
     .then(() => {
-      this.valid = 1;
+      this.state.setStateType('inProgress').save();
       this.holder.save();
 
       if (args.srcId) {
         this.holder.getObject<FileObject>(args.srcId)
-        .then((obj) => this.readRows(obj, columns, 1, 50));
+        .then((obj) => this.readRows(obj, columns, 1, 50))
+        .then(() => {
+          this.state.setProgress(1).setStateType('valid').save();
+        });
       }
     });
   }

@@ -2,6 +2,7 @@ import {
   OBJIOItem,
   SERIALIZER
 } from '../../index';
+import { StateObject } from './state-object';
 
 export interface SortPair {
   column: string;
@@ -79,12 +80,12 @@ export class Table extends OBJIOItem {
   protected table: string;
   protected columns: Columns = Array<ColumnAttr>();
   protected idColumn: string = 'row_uid';
-  protected valid: number = 0;
+  protected state = new StateObject();
 
   protected totalRowsNum: number = 0;
 
-  isValid(): boolean {
-    return !!this.valid;
+  getState(): StateObject {
+    return this.state;
   }
 
   execute(args: TableArgs): Promise<any> {
@@ -129,7 +130,7 @@ export class Table extends OBJIOItem {
 
   static TYPE_ID = 'Table';
   static SERIALIZE: SERIALIZER = () => ({
-    'valid': { type: 'integer'},
+    'state': { type: 'object' },
     'table': { type: 'string' },
     'columns': { type: 'json' },
     'totalRowsNum': { type: 'integer' },

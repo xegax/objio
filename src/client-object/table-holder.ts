@@ -14,6 +14,7 @@ import {
 } from './table';
 import { SERIALIZER, OBJIOItem } from '../objio/item';
 import { ExtPromise } from '../common/promise';
+import { StateObject } from './state-object';
 
 export class TableHolder<T extends Table = Table> extends OBJIOItem {
   private cells: Cells = [];
@@ -41,8 +42,8 @@ export class TableHolder<T extends Table = Table> extends OBJIOItem {
     return this.table.execute(args);
   }
 
-  isValid(): boolean {
-    return this.table.isValid();
+  getState(): StateObject {
+    return this.table.getState();
   }
 
   protected onLoad(): Promise<any> {
@@ -58,6 +59,9 @@ export class TableHolder<T extends Table = Table> extends OBJIOItem {
   private subscribeOnTable() {
     this.table.holder.addEventHandler({
       onObjChange: () => {
+        if (!this.table.getState().isValid())
+          return;
+
         this.updateCells().then(() => this.holder.notify());
       }
     });
