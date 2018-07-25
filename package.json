@@ -1,6 +1,6 @@
 {
   "name": "objio",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "",
   "main": "index.js",
   "repository": "git@github.com:xegax/objio.git",
@@ -21,11 +21,9 @@
   "license": "ISC",
   "devDependencies": {
     "@types/chai": "^4.1.3",
-    "@types/es6-shim": "^0.31.34",
     "@types/lodash": "^4.14.93",
     "@types/mocha": "^5.2.0",
     "@types/node": "^9.6.23",
-    "@types/sqlite3": "^3.1.3",
     "chai": "^4.1.2",
     "lodash": "^4.17.4",
     "mocha": "^5.1.1"

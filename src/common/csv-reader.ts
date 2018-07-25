@@ -1,9 +1,4 @@
-import { LineReader, Bunch, ReadArgs, ReadResult } from './line-reader';
-
-export {
-  Bunch,
-  ReadArgs
-}
+import { LineReader, Bunch, ReadArgs, LRReadResult } from './line-reader';
 
 export interface CSVBunch extends Bunch {
   rows: Array<Array<string>>;
@@ -43,7 +38,7 @@ export class CSVReader {
 
   private constructor() {}
 
-  static read(args: CSVReadArgs): Promise<ReadResult> {
+  static read(args: CSVReadArgs): Promise<LRReadResult> {
     return LineReader.read({
       ...args,
       onNextBunch: res => {

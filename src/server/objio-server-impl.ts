@@ -6,7 +6,7 @@ import {
   OBJIOServerStore,
   OBJIOItem,
   Field
-} from '../../index';
+} from '../index';
 import { OBJIOFSLocalStore } from './objio-fs-store';
 import { existsSync, lstatSync } from 'fs';
 

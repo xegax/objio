@@ -6,7 +6,7 @@ import {
   WriteObjectsArgs,
   CreateObjectsArgs,
   ObjStore
-} from '../../index';
+} from '../index';
 import {
   writeFileSync,
   readFileSync,

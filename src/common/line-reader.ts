@@ -5,7 +5,7 @@ interface ParseResult {
   lineEnd: boolean;
 }
 
-export interface ReadResult {
+export interface LRReadResult {
   readBufSize: number;
   lineBufSize: number;
   totalLines: number;
@@ -29,7 +29,7 @@ export interface ReadArgs {
 }
 
 export class LineReader {
-  static read(args: ReadArgs): Promise<ReadResult> {
+  static read(args: ReadArgs): Promise<LRReadResult> {
     args = {
       onNextBunch: () => Promise.resolve(),
       lineBufSize: 1024 * 32,
@@ -48,7 +48,7 @@ export class LineReader {
       let newBuf = new Buffer(newSize);
       buf.copy(newBuf);
       return newBuf;
-    }
+    };
 
     const parseLines = (readSize: number): ParseResult => {
       let lines: Array<string> = [];
@@ -120,9 +120,9 @@ export class LineReader {
       });
     };
 
-    let parseNext: (err: Error, readSize: number, resolve: (res: ReadResult) => void) => void;
+    let parseNext: (err: Error, readSize: number, resolve: (res: LRReadResult) => void) => void;
 
-    const readNext = (resolve: (res: ReadResult) => void) => {
+    const readNext = (resolve: (res: LRReadResult) => void) => {
       if (stop) {
         closeSync(fd);
         return resolve({
@@ -136,7 +136,7 @@ export class LineReader {
       read(fd, readBuf, 0, readBuf.byteLength, readPos, (err, read) => parseNext(err, read, resolve));
     };
 
-    parseNext = (err: Error, readSize: number, resolve: (res: ReadResult) => void) => {
+    parseNext = (err: Error, readSize: number, resolve: (res: LRReadResult) => void) => {
       if (err || readSize == 0) {
         closeSync(fd);
         if (lastLines.lineEnd)
