@@ -13,9 +13,9 @@ import { OBJIOItem, SERIALIZE, FieldFilter } from './item';
 
 export interface ServerStoreArgs extends OBJIOArgs {
   includeFilter?: FieldFilter;
-};
+}
 
-// the store send and receive client json data 
+// the store send and receive client json data
 export class OBJIOServerStore implements OBJIOStore {
   private objio: OBJIO;
   private factory: OBJIOFactory;

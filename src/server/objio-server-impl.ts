@@ -171,6 +171,7 @@ interface PrjData {
 
 let deferredHandler: Array<DefferredItem> = [];
 const flushDeffer = () => {
+  console.log('flush', deferredHandler.length, 'handlers');
   deferredHandler.forEach(item => item.handler());
   deferredHandler = [];
 };
@@ -191,7 +192,8 @@ async function getPrj(data: PrjData, factory: OBJIOFactory, rootDir: string): Pr
         includeFilter: (field: Field): boolean => {
           return !field.tags || !field.tags.length || field.tags.indexOf('sr') == -1;
         },
-        context: {path: path + '/', db: 'db.sqlite'}
+        context: {path: path + '/', db: 'db.sqlite'},
+        saveTime: 10
       }),
       watcher: new ObjWatcher()
     };

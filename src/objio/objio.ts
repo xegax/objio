@@ -5,7 +5,6 @@ import {
   OBJIOItemHolder,
   OBJIOContext
 } from './item';
-import { Timer } from '../common/timer';
 import { SerialPromise } from '../common/serial-promise';
 import { OBJIOArray } from './array';
 import {
@@ -14,6 +13,7 @@ import {
   CreateObjectsArgs
 } from './store';
 import { Requestor } from '../common/requestor';
+import { timer } from '../common/promise';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -32,7 +32,6 @@ class SavingQueue {
   private timeToSave: number = 0;
   private store: OBJIOStore;
   private savePromise: Promise<any>;
-  private timer: Timer;
   private objio: OBJIO;
 
   constructor(timeToSave: number, store: OBJIOStore, objio: OBJIO) {
@@ -51,41 +50,53 @@ class SavingQueue {
     if (this.savePromise)
       return this.savePromise;
 
-    return this.savePromise = new Promise((resolve, reject) => {
+    console.log('scheduled to save', this.queue.length);
+    return this.savePromise = timer(this.timeToSave).then(() => {
+      console.log('saving');
+      return this.saveImpl().then(() => {
+        this.savePromise = null;
+        console.log('save complete');
+      });
+    });
+
+    /*return this.savePromise = new Promise((resolve, reject) => {
+      console.log('savePromise');
       this.timer && this.timer.stop();
       this.timer = new Timer(() => {
+        console.log('timer');
         this.saveImpl().then(() => {
+          console.log('save complete');
           this.savePromise = null;
           resolve();
         }).catch(() => {
+          console.log('save complete err');
           this.savePromise = null;
           reject();
         });
       }).run(this.timeToSave);
-    });
+    });*/
   }
 
-  async saveImpl() {
+  saveImpl(): Promise<any> {
     const queue = this.queue;
     this.queue = [];
 
-    // console.log('saving started', queue.length);
-    const objs = await this.store.writeObjects(queue.map(item => {
+    console.log('saving', queue.length, 'objects');
+    return this.store.writeObjects(queue.map(item => {
       const holder = item.getHolder();
       return {
         id: holder.getID(),
         json: holder.getJSON(),
         version: holder.getVersion()
       };
-    }));
+    })).then(objs => {
+      objs.items.forEach((obj, i: number) => {
+        const holder = queue[i].getHolder() as OBJIOItemHolder;
+        holder.updateVersion(obj.version);
+      });
 
-    objs.items.forEach((obj, i: number) => {
-      const holder = queue[i].getHolder() as OBJIOItemHolder;
-      holder.updateVersion(obj.version);
+      this.objio.notifyOnSave(queue);
     });
-
-    this.objio.notifyOnSave(queue);
-    // console.log('saving complete');
   }
 }
 

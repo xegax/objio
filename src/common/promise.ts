@@ -1,8 +1,25 @@
 import { Timer } from './timer';
 
+let tid = 0;
 export function timer(ms: number): Promise<void> {
+  let t = tid++;
   return new Promise(resolve => {
-    new Timer(resolve).run(ms);
+    console.log('setTimeout', t);
+    setTimeout(() => {
+      console.log('resolve', t);
+      resolve();
+    }, ms);
+    /*try {
+      process.nextTick(() => {
+        resolve();
+        console.log('resolve');
+      });
+    } catch (e) {
+      setTimeout(() => {
+        console.log('resolve', t);
+        resolve();
+      }, ms);
+    }*/
   });
 }
 

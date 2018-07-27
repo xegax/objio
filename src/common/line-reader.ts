@@ -96,6 +96,14 @@ export class LineReader {
     };
 
     const nextBunch = (): Promise<any> => {
+      try {
+        return nextBunchImpl();
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    };
+
+    const nextBunchImpl = (): Promise<any> => {
       const b: Bunch = {
         progress: totalRead / stat.size,
         firstLineIdx: bunch.firstLineIdx,
@@ -120,9 +128,14 @@ export class LineReader {
       });
     };
 
-    let parseNext: (err: Error, readSize: number, resolve: (res: LRReadResult) => void) => void;
+    let parseNext: (
+      err: Error,
+      readSize: number,
+      resolve: (res: LRReadResult) => void,
+      reject: (err: any) => void
+    ) => void;
 
-    const readNext = (resolve: (res: LRReadResult) => void) => {
+    const readNext = (resolve: (res: LRReadResult) => void, reject: (err: any) => void) => {
       if (stop) {
         closeSync(fd);
         return resolve({
@@ -133,30 +146,31 @@ export class LineReader {
         });
       }
 
-      read(fd, readBuf, 0, readBuf.byteLength, readPos, (err, read) => parseNext(err, read, resolve));
+      read(fd, readBuf, 0, readBuf.byteLength, readPos, (err, read) => parseNext(err, read, resolve, reject));
     };
 
-    parseNext = (err: Error, readSize: number, resolve: (res: LRReadResult) => void) => {
+    parseNext = (err: Error, readSize: number, resolve: (res: LRReadResult) => void, reject: (err: any) => void) => {
       if (err || readSize == 0) {
         closeSync(fd);
         if (lastLines.lineEnd)
           bunch.lines.push('');
 
         let task: Promise<any> = Promise.resolve();
-        if (bunch.lines.length)
-          task = nextBunch();
+        if (bunch.lines.length) {
+          nextBunch();
+        }
 
         return task.then(() => resolve({
           totalLines,
           totalRead,
           readBufSize: readBuf.byteLength,
           lineBufSize: lineBuf.byteLength
-        }));
+        })).catch(reject);
       }
 
       if (readSize == readBuf.byteLength && readBuf.readUInt8(readBuf.byteLength - 1) == 0x0d) {
         readBuf = new Buffer(readBuf.byteLength + 1);
-        return readNext(resolve);
+        return readNext(resolve, reject);
       }
 
       readPos += readSize;
@@ -165,9 +179,10 @@ export class LineReader {
       bunch.lines.push(...lastLines.lines);
       if (bunch.lines.length >= args.linesPerBunch) {
         nextBunch()
-        .then(() => readNext(resolve));
+        .then(() => readNext(resolve, reject))
+        .catch(reject);
       } else {
-        readNext(resolve);
+        readNext(resolve, reject);
       }
     };
 

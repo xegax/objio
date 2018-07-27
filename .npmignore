@@ -1,5 +1,7 @@
 .vscode
+node_modules
 build
+test
 src/**/*.ts
 !src/**/*.d.ts
 *.ts
@@ -7,3 +9,5 @@ src/**/*.ts
 tsconfig.json
 README.md
 tslint.json
+package-lock.json
+yarn.lock
