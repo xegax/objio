@@ -1,6 +1,7 @@
 import * as http from 'http';
 import * as url from 'url';
 import {Encryptor, EmptyEncryptor} from '../common/encryptor';
+import { createWriteStream } from 'fs';
 
 export interface Params<GET, POST, COOKIE> {
   get: GET;
@@ -16,7 +17,7 @@ export type Handler<GET, POST, COOKIE> = (
 ) => void;
 
 export type DataHandler<GET> = (
-  params: {get: GET, offs: number, count: number, post: Buffer},
+  params: {get: GET, stream: http.IncomingMessage},
   resolve: (result: any) => void,
   reject: (err: any) => void
 ) => void;
@@ -151,39 +152,35 @@ export class ServerImpl implements Server  {
       let postJSON: any;
       let offsData = 0;
 
-      request.on('data', (data: Buffer) => {
-        if (holder.type == 'json') {
+      if (holder.type == 'json')
+        request.on('data', (data: Buffer) => {
           postData += data.toString();
-        } else {
-          dataHandler({get: params, post: data, offs: offsData, count: data.byteLength}, writeOK, writeErr);
-          offsData += data.byteLength;
-        }
-      });
-      request.on('end', () => {
-        if (holder.type == 'json' && postData.length) {
-          try {
-            postJSON = JSON.parse(this.decrypt(postData.toString()));
-          } catch (e) {
-            console.log(e);
-          }
-        }
+        });
+      else
+        dataHandler({get: params, stream: request}, writeOK, writeErr)
 
-        try {
-          if (holder.type == 'json') {
-            jsonHandler({
-              get: params,
-              post: postJSON,
-              cookie,
-              done: writeOK,
-              error: writeErr
-            }, handler => closes.push(handler));
-          } else {
-            dataHandler({get: params, offs: offsData, count: 0, post: null}, writeOK, writeErr);
+      if (holder.type == 'json')
+        request.on('end', () => {
+          if (postData.length) {
+            try {
+              postJSON = JSON.parse(this.decrypt(postData.toString()));
+            } catch (e) {
+              console.log(e);
+            }
           }
-        } catch (err) {
-          writeErr(err);
-        }
-      });
+
+          try {
+              jsonHandler({
+                get: params,
+                post: postJSON,
+                cookie,
+                done: writeOK,
+                error: writeErr
+              }, handler => closes.push(handler));
+          } catch (err) {
+            writeErr(err);
+          }
+        });
     } else {
       try {
         (holder.handler as Handler<any, any, any>)(
