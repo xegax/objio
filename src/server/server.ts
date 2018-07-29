@@ -157,7 +157,7 @@ export class ServerImpl implements Server  {
           postData += data.toString();
         });
       else
-        dataHandler({get: params, stream: request}, writeOK, writeErr)
+        dataHandler({get: params, stream: request}, writeOK, writeErr);
 
       if (holder.type == 'json')
         request.on('end', () => {

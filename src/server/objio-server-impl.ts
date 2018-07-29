@@ -248,10 +248,12 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
       const obj = prj.store.getOBJIO().getObject(params.get.id);
       if (!obj)
         return error('object not found');
-  
+
       const methods = obj.holder.getMethodsToInvoke();
       if ('send-file' in methods)
         methods['send-file']({ data: params.stream }).then(() => done({}));
+      else
+        error(`method send-file of this object type = "${OBJIOItem.getClass(obj).TYPE_ID}" not found!`);
     });
   });
 
