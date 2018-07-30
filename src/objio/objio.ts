@@ -183,8 +183,45 @@ export class OBJIO {
     return this.objectMap[id] as T;
   }
 
+  getObjectsMap(): { [id: string]: OBJIOItem } {
+    return this.objectMap;
+  }
+
   invokeMethod(obj: OBJIOItem, name: string, args: Object): Promise<any> {
     return this.store.invokeMethod(obj.holder.getID(), name, args);
+  }
+
+  removeObjs(ids: Set<string>): Promise<any> {
+    let removeTask: Promise<any> = Promise.resolve();
+    ids.forEach(id => {
+      const handler = this.objectMap[id].holder.getEventHandler();
+      removeTask = removeTask.then(() => {
+        console.log( 'removing', id, OBJIOItem.getClass(this.objectMap[id]).TYPE_ID );
+        return Promise.all(handler.map(h => h.onDelete ? h.onDelete() : Promise.resolve()));
+      });
+      delete this.objectMap[id];
+    });
+
+    return removeTask;
+  }
+
+  findLinkedObjs(): Promise<Set<string>> {
+    const usedObjs = new Set<string>();
+    function checkChildren(parent: OBJIOItem) {
+      if (usedObjs.has(parent.holder.getID()))
+        return;
+
+      usedObjs.add(parent.holder.getID());
+
+      const objClass = OBJIOItem.getClass(parent);
+      const arr = objClass.getRelObjs(parent);
+      arr.forEach(obj => checkChildren(obj));
+    }
+
+    return this.loadObject('0').then(obj => {
+      checkChildren(obj);
+      return usedObjs;
+    });
   }
 
   async createObject<T>(obj: OBJIOItem): Promise<T> {

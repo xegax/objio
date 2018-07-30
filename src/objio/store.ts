@@ -33,6 +33,9 @@ export interface OBJIOStore {
   readObject(id: string): Promise<ReadResult>;
 
   invokeMethod(id: string, method: string, args: Object): Promise<any>;
+
+  getAllObjIDS(): Promise<Set<string>>;
+  removeObjs(ids: Set<string>): Promise<any>;
 }
 
 export function nextVersion(ver: string) {
@@ -79,6 +82,14 @@ export class OBJIOStoreBase implements OBJIOStore {
 
   invokeMethod(id: string, method: string, args: Object): Promise<any> {
     return this.storeImpl.invokeMethod(id, method, args);
+  }
+
+  getAllObjIDS(): Promise<Set<string>> {
+    return this.storeImpl.getAllObjIDS();
+  }
+
+  removeObjs(ids: Set<string>): Promise<any> {
+    return this.storeImpl.removeObjs(ids);
   }
 
   getWrites() {
@@ -323,6 +334,18 @@ export class OBJIOLocalStore implements OBJIOStore {
 
   setObjectData(id: string, data: ObjStore) {
     this.objects[id] = data;
+  }
+
+  getAllObjIDS(): Promise<Set<string>> {
+    return Promise.resolve( new Set(Object.keys(this.objects)) );
+  }
+
+  removeObjs(ids: Set<string>): Promise<any> {
+    ids.forEach(id => {
+      delete this.objects[id];
+    });
+
+    return Promise.resolve();
   }
 }
 

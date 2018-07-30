@@ -66,6 +66,14 @@ export class OBJIORemoteStore implements OBJIOStore {
     });
   }
 
+  getAllObjIDS(): Promise<Set<string>> {
+    return Promise.reject('This is not implemented');
+  }
+
+  removeObjs(ids: Set<string>): Promise<any> {
+    return Promise.reject('This is not implemented');
+  }
+
   private getUrl(url: string): string {
     return `${this.root}${url}`;
   }

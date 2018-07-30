@@ -10,7 +10,7 @@ export type Field = {
 
 export type FieldsMap<T = any> = {
   [key in keyof T]?: Field;
-}
+};
 
 export type SERIALIZER<T = any> = () => FieldsMap<T>;
 

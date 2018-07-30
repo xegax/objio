@@ -325,6 +325,33 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     params.done(watcher.getObjects());
   });
 
+  srv.addJsonHandler<{}, {}>('read', 'exit', () => {
+    console.log('clean process started');
+    let task = Promise.resolve();
+    Object.keys(prjMap).forEach(prjID => {
+      if (prjID == 'undefined')
+        return;
+
+      console.log(prjID);
+      const prj = prjMap[prjID];
+      task = task.then(() => Promise.all([
+        prj.store.getOBJIO().findLinkedObjs(),
+        prj.store.getAllObjIDS()
+      ]).then(res => {
+        res[0].forEach(id => {
+          res[1].delete(id);
+        });
+        console.log('removing', res[1]);
+        return prj.store.removeObjs(res[1]);
+      }));
+    });
+
+    task.then(() => {
+      console.log('remove finished');
+      process.exit();
+    });
+  });
+
   const { store } = await getPrj({}, args.factory, prjsDir);
   return { store };
 }

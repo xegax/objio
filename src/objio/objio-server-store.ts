@@ -184,4 +184,12 @@ export class OBJIOServerStore implements OBJIOStore {
 
     return method(args);
   }
+
+  getAllObjIDS(): Promise<Set<string>> {
+    return Promise.resolve( new Set( Object.keys(this.objio.getObjectsMap()) ) );
+  }
+
+  removeObjs(ids: Set<string>): Promise<any> {
+    return this.objio.removeObjs(ids);
+  }
 }
