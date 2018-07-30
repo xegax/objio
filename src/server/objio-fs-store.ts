@@ -11,7 +11,8 @@ import {
   writeFileSync,
   readFileSync,
   unlink,
-  existsSync
+  existsSync,
+  unlinkSync
 } from 'fs';
 import { promisify } from 'util';
 
@@ -85,5 +86,18 @@ export class OBJIOFSLocalStore extends OBJIOLocalStore {
   getObjectData(id: string): ObjStore {
     this.loadObjectIfNeed(id);
     return super.getObjectData(id);
+  }
+
+  removeObjs(ids: Set<string>): Promise<any> {
+    ids.forEach(id => {
+      const file = this.getObjPath(id);
+      if (!existsSync(file))
+        return;
+      
+      console.log('remove obj file', file);
+      unlinkSync(file);
+    });
+
+    return super.removeObjs(ids);
   }
 }

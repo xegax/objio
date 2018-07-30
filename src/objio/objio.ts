@@ -50,31 +50,11 @@ class SavingQueue {
     if (this.savePromise)
       return this.savePromise;
 
-    console.log('scheduled to save', this.queue.length);
     return this.savePromise = timer(this.timeToSave).then(() => {
-      console.log('saving');
       return this.saveImpl().then(() => {
         this.savePromise = null;
-        console.log('save complete');
       });
     });
-
-    /*return this.savePromise = new Promise((resolve, reject) => {
-      console.log('savePromise');
-      this.timer && this.timer.stop();
-      this.timer = new Timer(() => {
-        console.log('timer');
-        this.saveImpl().then(() => {
-          console.log('save complete');
-          this.savePromise = null;
-          resolve();
-        }).catch(() => {
-          console.log('save complete err');
-          this.savePromise = null;
-          reject();
-        });
-      }).run(this.timeToSave);
-    });*/
   }
 
   saveImpl(): Promise<any> {
@@ -194,14 +174,23 @@ export class OBJIO {
   removeObjs(ids: Set<string>): Promise<any> {
     let removeTask: Promise<any> = Promise.resolve();
     ids.forEach(id => {
-      const handler = this.objectMap[id].holder.getEventHandler();
-      removeTask = removeTask.then(() => {
-        console.log( 'removing', id, OBJIOItem.getClass(this.objectMap[id]).TYPE_ID );
-        return Promise.all(handler.map(h => h.onDelete ? h.onDelete() : Promise.resolve()));
+      const obj = this.objectMap[id];
+      if (!obj)
+        return;
+
+      obj.holder.getEventHandler().forEach(h => {
+        if (!h.onDelete)
+          return;
+
+        removeTask = removeTask.then(() => h.onDelete());
       });
-      delete this.objectMap[id];
+
+      removeTask = removeTask.then(() => {
+        delete this.objectMap[id];
+      });
     });
 
+    removeTask = removeTask.then(() => this.store.removeObjs(ids));
     return removeTask;
   }
 

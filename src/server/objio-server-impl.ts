@@ -334,16 +334,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
       console.log(prjID);
       const prj = prjMap[prjID];
-      task = task.then(() => Promise.all([
-        prj.store.getOBJIO().findLinkedObjs(),
-        prj.store.getAllObjIDS()
-      ]).then(res => {
-        res[0].forEach(id => {
-          res[1].delete(id);
-        });
-        console.log('removing', res[1]);
-        return prj.store.removeObjs(res[1]);
-      }));
+      task = task.then(() => prj.store.clean());
     });
 
     task.then(() => {

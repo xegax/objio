@@ -192,4 +192,17 @@ export class OBJIOServerStore implements OBJIOStore {
   removeObjs(ids: Set<string>): Promise<any> {
     return this.objio.removeObjs(ids);
   }
+
+  clean(): Promise<any> {
+    return Promise.all([
+      this.getOBJIO().findLinkedObjs(),
+      this.getAllObjIDS()
+    ]).then(res => {
+      res[0].forEach(id => {
+        res[1].delete(id);
+      });
+      console.log('removing', res[1]);
+      return this.removeObjs(res[1]);
+    });
+  }
 }
