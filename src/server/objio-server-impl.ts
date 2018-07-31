@@ -325,21 +325,12 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     params.done(watcher.getObjects());
   });
 
-  srv.addJsonHandler<{}, {}>('read', 'exit', () => {
+  srv.addJsonHandler<PrjData, {}>('write', 'clean', (params) => {
     console.log('clean process started');
-    let task = Promise.resolve();
-    Object.keys(prjMap).forEach(prjID => {
-      if (prjID == 'undefined')
-        return;
-
-      console.log(prjID);
-      const prj = prjMap[prjID];
-      task = task.then(() => prj.store.clean());
-    });
-
-    task.then(() => {
-      console.log('remove finished');
-      process.exit();
+    getPrj(params.get, args.factory, prjsDir).then(res => {
+      return res.store.clean();
+    }).then(objs => {
+      params.done(objs);
     });
   });
 

@@ -193,7 +193,8 @@ export class OBJIOServerStore implements OBJIOStore {
     return this.objio.removeObjs(ids);
   }
 
-  clean(): Promise<any> {
+  clean(): Promise<Array<{type: string, id: string}>> {
+    let objs = Array<{type: string, id: string}>();
     return Promise.all([
       this.getOBJIO().findLinkedObjs(),
       this.getAllObjIDS()
@@ -201,8 +202,14 @@ export class OBJIOServerStore implements OBJIOStore {
       res[0].forEach(id => {
         res[1].delete(id);
       });
+      res[1].forEach(id => {
+        const obj = this.getOBJIO().getObject(id);
+        if (!obj)
+          return;
+        objs.push({ id: obj.holder.getID(), type: OBJIOItem.getClass(obj).TYPE_ID});
+      });
       console.log('removing', res[1]);
-      return this.removeObjs(res[1]);
+      return this.removeObjs(res[1]).then(() => objs);
     });
   }
 }
