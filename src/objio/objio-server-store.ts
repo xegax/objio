@@ -33,16 +33,13 @@ export class OBJIOServerStore implements OBJIOStore {
     return ss;
   }
 
-  async createObjects(ids: CreateObjectsArgs): Promise<CreateResult> {
+  async createObjects(args: CreateObjectsArgs): Promise<CreateResult> {
     let objsMap: {[id: string]: OBJIOItem} = {};
-    let firstId: string;
     let tasks: Array<Promise<any>> = [];
-    Object.keys(ids).forEach(id => {
-      const item = ids[id];
+    Object.keys(args.objs).forEach(id => {
+      const item = args.objs[id];
       const objClass = this.factory.findItem(item.classId);
       objsMap[id] = this.objio.getObject(id) || objClass.create();
-
-      !firstId && (firstId = id);
     });
 
     await Promise.all(tasks);
@@ -50,7 +47,7 @@ export class OBJIOServerStore implements OBJIOStore {
     tasks = [];
     Object.keys(objsMap).forEach(id => {
       const obj = objsMap[id];
-      const store = ids[id].json;
+      const store = args.objs[id].json;
       const objClass = OBJIOItem.getClass(obj);
       if (this.objio.getObject(id))
         return;
@@ -64,7 +61,7 @@ export class OBJIOServerStore implements OBJIOStore {
     });
 
     await Promise.all(tasks);
-    await this.objio.createObject(objsMap[firstId]);
+    await this.objio.createObject(objsMap[args.rootId]);
 
     let res: CreateResult = {};
     Object.keys(objsMap).forEach(id => {

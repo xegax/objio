@@ -215,7 +215,10 @@ export class OBJIO {
 
   async createObject<T>(obj: OBJIOItem): Promise<T> {
     const objs = OBJIOItem.getRelObjs(obj, [obj]);
-    const objsJSONMap: CreateObjectsArgs = {};
+    const objsJSONMap: CreateObjectsArgs = {
+      rootId: obj.holder.getID(),
+      objs: {}
+    };
     const objsMap: { [id: string]: OBJIOItem } = {};
     objs.forEach(obj => {
       const objClass = OBJIOItem.getClass(obj);
@@ -224,7 +227,7 @@ export class OBJIO {
       const id = holder.getID();
 
       objsMap[id] = obj;
-      objsJSONMap[id] = {
+      objsJSONMap.objs[id] = {
         classId: objClass.TYPE_ID,
         json: holder.getJSON()
       };

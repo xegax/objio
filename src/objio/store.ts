@@ -19,7 +19,10 @@ export interface CreateResult {
   };
 }
 
-export type CreateObjectsArgs = { [id: string]: { classId: string, json: Object } };
+export type CreateObjectsArgs = {
+  rootId: string;
+  objs: {[id: string]: { classId: string, json: Object }};
+};
 export type WriteObjectsArgs = Array<{ id: string, json: Object, version: string }>;
 
 export interface OBJIOStore {
@@ -145,11 +148,11 @@ export class OBJIOLocalStore implements OBJIOStore {
     this.idCounter = obj.idCounter;
   }
 
-  createObjects(objMap: CreateObjectsArgs): Promise<CreateResult> {
+  createObjects(args: CreateObjectsArgs): Promise<CreateResult> {
     const res: CreateResult = {};
 
-    Object.keys(objMap).forEach(id => {
-      const obj = objMap[id];
+    Object.keys(args.objs).forEach(id => {
+      const obj = args.objs[id];
 
       if (this.objects[id])
         return;
