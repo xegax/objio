@@ -248,6 +248,9 @@ export class OBJIO {
   loadObject<T extends OBJIOItem>(id?: string): Promise<T> {
     id = id || '0';
 
+    if (id.startsWith('loc-'))
+      return Promise.reject();
+
     if (this.objectMap[id])
       return Promise.resolve(this.objectMap[id] as T);
 
