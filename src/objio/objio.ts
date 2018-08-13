@@ -264,23 +264,29 @@ export class OBJIO {
         this.initNewObject(newObj, objId, store.version);
       }
 
-      Promise.resolve(objClass.loadStore({
+      return Promise.resolve(objClass.loadStore({
         obj: newObj,
         store: store.json,
         getObject: (id: string) => loadObjectImpl(id, objsMap)
       })).then(() => {
-        return newObj.holder.onLoaded();
+        newObj.holder.updateVersion(store.version);
+        return newObj;
       });
-
-      newObj.holder.updateVersion(store.version);
-      return newObj;
     };
 
+    let res: ReadResult;
+    let resObj: T;
     return (
       this.store.readObjects(id)
       .then(objsMap => {
+        res = objsMap;
         return loadObjectImpl(id, objsMap) as T;
-      })
+      }).then(obj => {
+        resObj = obj;
+        return Promise.all(Object.keys(res).map(id => 
+          this.objectMap[id].holder.onLoaded()
+        ));
+      }).then(() => resObj)
     );
   }
 
