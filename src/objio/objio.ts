@@ -249,12 +249,15 @@ export class OBJIO {
     id = id || '0';
 
     if (id.startsWith('loc-'))
-      return Promise.reject();
+      return Promise.reject('local object id detected');
 
     if (this.objectMap[id])
       return Promise.resolve(this.objectMap[id] as T);
 
     const loadObjectImpl = (objId: string, objsMap: ReadResult) => {
+      if (this.objectMap[objId])
+        return Promise.resolve(this.objectMap[objId]);
+
       const store = objsMap[objId];
       const objClass = this.factory.findItem(store.classId);
       let newObj: OBJIOItem;

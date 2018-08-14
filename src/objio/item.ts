@@ -311,8 +311,10 @@ export class OBJIOItem {
         return;
 
       const childObj: OBJIOItem = obj[name];
-      OBJIOItem.getClass(childObj).getRelObjs(childObj, arr);
+      if (arr.indexOf(childObj) != -1)
+        return;
       arr.push(childObj);
+      OBJIOItem.getClass(childObj).getRelObjs(childObj, arr);
     });
 
     return arr;

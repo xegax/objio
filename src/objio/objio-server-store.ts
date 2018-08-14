@@ -120,6 +120,9 @@ export class OBJIOServerStore implements OBJIOStore {
   }
 
   private async readObjectResult(id: string, res: ReadResult, deep: boolean) {
+    if (res[id])
+      return;
+
     const obj = await this.objio.loadObject(id);
     if (!obj)
       throw `Object with id=${id} not found`;
