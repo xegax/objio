@@ -278,6 +278,9 @@ export class OBJIOLocalStore implements OBJIOStore {
   }
 
   private readObjectResult(id: string, res: ReadResult, deep: boolean) {
+    if (res[id])
+      return;
+
     const objStore = this.getObjectData(id);
     if (!objStore)
       throw `Object with id=${id} not found`;
