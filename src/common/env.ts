@@ -1,7 +1,14 @@
+let isNodeValue: boolean = null;
+
 export function isNode(): boolean {
+  if (isNodeValue != null)
+    return isNodeValue;
+
   try {
-    return eval('process') != null;
+    isNodeValue = eval('process') != null;
   } catch (e) {
-    return false;
+    isNodeValue = false;
   }
+
+  return isNodeValue;
 }

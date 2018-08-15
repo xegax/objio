@@ -1,21 +1,49 @@
-export class Publisher {
-  private observers = Array<() => void>();
+import { Timer } from './timer';
 
-  subscribe(o: () => void) {
-    this.observers.indexOf(o) == -1 && this.observers.push(o);
+export class Publisher<T = string> {
+  private observers = Array<{handler: () => void, type: T}>();
+  private delayedTypes: Set<T> = new Set();
+  private timer: Timer;
+
+  constructor() {
+    this.timer = new Timer(this.notify);
   }
 
-  unsubscribe(o: () => void) {
-    this.observers.splice(this.observers.indexOf(o), 1);
+  subscribe(handler: () => void, type?: T): void {
+    if (this.observers.find(item => handler == item.handler && item.type == type))
+      return;
+    this.observers.push({handler, type});
   }
 
-  notify() {
-    this.observers.forEach(notify => {
+  unsubscribe(handler: () => void, type?: T): void {
+    const i = this.observers.findIndex(item => handler == item.handler && item.type == type);
+    if (i == -1)
+      this.observers.splice(i, 1);
+  }
+
+  notify = (type?: T): void => {
+    this.timer.stop();
+
+    this.observers.forEach(item => {
       try {
-        notify();
+        if (item.type == type || this.delayedTypes.has(item.type))
+          item.handler();
       } catch (e) {
         console.log(e);
       }
     });
+    this.delayedTypes.clear();
+  }
+
+  delayedNotify(args?: {ms?: number, type?: T}): void {
+    args = args || {
+      ms: 10
+    };
+
+    if (this.timer.isRunning() && this.delayedTypes.has(args.type))
+      return;
+
+    this.delayedTypes.add(args.type);
+    this.timer.run(args.ms || 10);
   }
 }
