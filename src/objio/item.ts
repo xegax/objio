@@ -311,7 +311,7 @@ export class OBJIOItem {
         return;
 
       const childObj: OBJIOItem = obj[name];
-      if (arr.indexOf(childObj) != -1)
+      if (childObj == null || arr.indexOf(childObj) != -1)
         return;
       arr.push(childObj);
       OBJIOItem.getClass(childObj).getRelObjs(childObj, arr);
