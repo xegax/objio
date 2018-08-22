@@ -26,7 +26,7 @@ export class Publisher<T = string> {
 
     this.observers.forEach(item => {
       try {
-        if (item.type == type || this.delayedTypes.has(item.type))
+        if (!item.type || item.type == type || this.delayedTypes.has(item.type))
           item.handler();
       } catch (e) {
         console.log(e);

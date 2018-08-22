@@ -172,17 +172,25 @@ export class OBJIOServerStore implements OBJIOStore {
     return res;
   }
 
-  async invokeMethod(id: string, methodName: string, args: Object): Promise<any> {
-    const obj = this.objio.getObject(id) || await this.objio.loadObject(id);
-    if (!obj)
-      throw new Error(`object ${id} not found`);
+  invokeMethod(id: string, methodName: string, args: Object): Promise<any> {
+    return Promise.resolve(this.objio.getObject(id))
+    .then(obj => {
+      if (obj)
+        return obj;
 
-    const methods = obj.holder.getMethodsToInvoke();
-    const method = methods[methodName];
-    if (!method)
-      throw new Error(`method ${methodName} not found`);
+      return this.objio.loadObject(id);
+    })
+    .then(obj => {
+      if (!obj)
+        throw new Error(`object ${id} not found`);
 
-    return method(args);
+      const methods = obj.holder.getMethodsToInvoke();
+      const method = methods[methodName];
+      if (!method)
+        throw new Error(`method ${methodName} not found`);
+
+      return method(args);
+    });
   }
 
   getAllObjIDS(): Promise<Set<string>> {
