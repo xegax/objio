@@ -55,7 +55,7 @@ export class OBJIORemoteStore implements OBJIOStore {
     if (args instanceof File) {
       return this.req.getData({
         url: this.getUrl('send-file'),
-        params: {id},
+        params: {id, name: args.name, size: args.size, mime: args.type},
         postData: args
       });
     }

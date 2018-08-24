@@ -286,9 +286,7 @@ export class OBJIO {
         return loadObjectImpl(id, objsMap) as T;
       }).then(obj => {
         resObj = obj;
-        return Promise.all(Object.keys(res).map(id => 
-          this.objectMap[id].holder.onLoaded()
-        ));
+        return Promise.all(Object.keys(res).map(id => this.objectMap[id].holder.onLoaded()));
       }).then(() => resObj)
     );
   }

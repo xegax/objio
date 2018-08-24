@@ -234,6 +234,13 @@ export interface ServerCreateResult {
   store: OBJIOServerStore;
 }
 
+interface SendFileArgs extends PrjData {
+  id: string;
+  name: string;
+  size: number;
+  mime: string;
+}
+
 export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateResult> {
   const prjsDir = getAndCheckPrjsDir(args.prjsDir);
 
@@ -242,7 +249,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     baseUrl: args.baseUrl || '/handler/objio/'
   }));
 
-  srv.addDataHandler<PrjData & {id: string}>('write', 'send-file', (params, done, error) => {
+  srv.addDataHandler<SendFileArgs>('write', 'send-file', (params, done, error) => {
     return getPrj(params.get, args.factory, prjsDir)
     .then(prj => {
       const obj = prj.store.getOBJIO().getObject(params.get.id);
@@ -251,7 +258,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
       const methods = obj.holder.getMethodsToInvoke();
       if ('send-file' in methods)
-        methods['send-file']({ data: params.stream }).then(() => done({}));
+        methods['send-file']({ ...params.get, data: params.stream }).then(() => done({}));
       else
         error(`method send-file of this object type = "${OBJIOItem.getClass(obj).TYPE_ID}" not found!`);
     });
