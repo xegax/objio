@@ -41,7 +41,7 @@ export function EXTEND<T = any>(fields: FieldsMap<T>, add: Partial<Field>): Fiel
 }
 
 interface OBJItemConstructor extends ObjectConstructor {
-  new(json?: Object): OBJIOItem;
+  new(json?: any): OBJIOItem;
 }
 
 export interface LoadStoreArgs {
@@ -64,7 +64,7 @@ export interface OBJIOItemClass {
   getRelObjIDS?(store: Object, replaceID?: (id: string) => string): GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
   invokeMethod?(obj: OBJIOItem, name: string, args: Object): Promise<any>;
-  create?(): OBJIOItem;
+  create?(args?: any): OBJIOItem;
 }
 
 export interface OBJIOContext {
@@ -320,8 +320,12 @@ export class OBJIOItem {
     return arr;
   }
 
-  static create(): OBJIOItem {
+  static create(args?: any): OBJIOItem {
     const objClass: OBJIOItemClass = this.getClass();
+    if (args) {
+      return new (objClass as any as OBJItemConstructor)(args);
+    }
+
     return new (objClass as any as OBJItemConstructor)();
   }
 
