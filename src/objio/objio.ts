@@ -221,6 +221,9 @@ export class OBJIO {
     };
     const objsMap: { [id: string]: OBJIOItem } = {};
     objs.forEach(obj => {
+      if (!obj.holder.getID().startsWith('loc-'))
+        return;
+
       const objClass = OBJIOItem.getClass(obj);
 
       const holder = obj.getHolder();
