@@ -85,6 +85,7 @@ export interface ErrorArgs {
   type: ErrorType;
   error: any;
   obj?: OBJIOItem;
+  args?: any;
 }
 
 export type ErrorHandler = (args: ErrorArgs) => void;
@@ -184,7 +185,7 @@ export class OBJIO {
     return (
       this.store.invokeMethod(obj.holder.getID(), name, args)
       .catch(error => {
-        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj })
+        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj, args: { method: name, args } })
       })
     );
   }
@@ -274,7 +275,7 @@ export class OBJIO {
 
     if (id.startsWith('loc-')) {
       const error = `local object id=${id} detected`;
-      this.errorHandler && this.errorHandler({ type: 'loadObject', error });
+      this.errorHandler && this.errorHandler({ type: 'loadObject', error, args: { id } });
       return Promise.reject(error);
     }
 
@@ -302,7 +303,7 @@ export class OBJIO {
         newObj.holder.updateVersion(store.version);
         return newObj;
       }).catch(error => {
-        this.errorHandler && this.errorHandler({ type: 'loadObject', error });
+        this.errorHandler && this.errorHandler({ type: 'loadObject', error, args: { id } });
       });
     };
 
@@ -318,7 +319,7 @@ export class OBJIO {
         return Promise.all(Object.keys(res).map(id => this.objectMap[id].holder.onLoaded()));
       }).then(() => resObj)
       .catch(error => {
-        this.errorHandler && this.errorHandler({ type: 'loadObject', error });
+        this.errorHandler && this.errorHandler({ type: 'loadObject', error, args: { id } });
         return resObj;
       })
     );
