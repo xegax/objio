@@ -69,12 +69,11 @@ export interface OBJIOItemClass {
 
 export interface OBJIOContext {
   path: string;
-  db: string;
 }
 
 export interface OBJIOItemHolderOwner {
   save(obj: OBJIOItem): Promise<any>;
-  create(obj: OBJIOItem): Promise<OBJIOItem>;
+  create(obj: OBJIOItem): Promise<void>;
   getObject(id: string): Promise<OBJIOItem>;
   invoke(obj: OBJIOItem, name: string, args: Object): Promise<any>;
   context(): OBJIOContext;
@@ -163,11 +162,11 @@ export class OBJIOItemHolder extends Publisher {
     return this.owner.save(this.obj);
   }
 
-  createObject<T extends OBJIOItem>(obj: T): Promise<T> {
+  createObject<T extends OBJIOItem>(obj: T): Promise<void> {
     if (!this.owner)
-      return Promise.reject<T>('owner not defined');
+      return Promise.reject('owner not defined');
 
-    return this.owner.create(obj) as Promise<T>;
+    return this.owner.create(obj);
   }
 
   getObject<T extends OBJIOItem>(id: string): Promise<T> {
@@ -201,11 +200,6 @@ export class OBJIOItemHolder extends Publisher {
 
   static getFilePath(ctx: OBJIOContext, f: string): string {
     return ctx.path + f;
-  }
-
-  getDBPath(): string {
-    const ctx = this.owner.context();
-    return this.getFilePath(ctx.db);
   }
 
   getFilePath(file: string) {

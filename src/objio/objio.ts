@@ -80,6 +80,15 @@ class SavingQueue {
   }
 }
 
+export type ErrorType = 'invoke' | 'loadObject';
+export interface ErrorArgs {
+  type: ErrorType;
+  error: any;
+  obj?: OBJIOItem;
+}
+
+export type ErrorHandler = (args: ErrorArgs) => void;
+
 export interface Observer {
   onSave?: (saved: Array<OBJIOItem>) => void;
 }
@@ -98,9 +107,9 @@ export class OBJIO {
   private savingQueue: SavingQueue;
   private observers: Array<Observer> = Array<Observer>();
   private context: OBJIOContext = {
-    path: '',
-    db: 'db'
+    path: ''
   };
+  private errorHandler: ErrorHandler;
 
   static create(args: OBJIOArgs): Promise<OBJIO> {
     let obj = new OBJIO();
@@ -115,6 +124,10 @@ export class OBJIO {
   addObserver(obj: Observer) {
     if (this.observers.indexOf(obj) == -1)
       this.observers.push(obj);
+  }
+
+  setErrorHandler(handler: ErrorHandler): void {
+    this.errorHandler = handler;
   }
 
   getWrites() {
@@ -168,7 +181,12 @@ export class OBJIO {
   }
 
   invokeMethod(obj: OBJIOItem, name: string, args: Object): Promise<any> {
-    return this.store.invokeMethod(obj.holder.getID(), name, args);
+    return (
+      this.store.invokeMethod(obj.holder.getID(), name, args)
+      .catch(error => {
+        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj })
+      })
+    );
   }
 
   removeObjs(ids: Set<string>): Promise<any> {
@@ -213,7 +231,7 @@ export class OBJIO {
     });
   }
 
-  async createObject<T>(obj: OBJIOItem): Promise<T> {
+  createObject(obj: OBJIOItem): Promise<void> {
     const objs = OBJIOItem.getRelObjs(obj, [obj]);
     const objsJSONMap: CreateObjectsArgs = {
       rootId: obj.holder.getID(),
@@ -236,23 +254,29 @@ export class OBJIO {
       };
     });
 
-    const res = await this.store.createObjects(objsJSONMap);
+    return (
+      this.store.createObjects(objsJSONMap)
+      .then(res => {
+        Object.keys(res).forEach(id => {
+          const obj = objsMap[id];
+          const item = res[id];
+          this.initNewObject(obj, item.newId, item.version);
+        });
 
-    Object.keys(res).forEach(id => {
-      const obj = objsMap[id];
-      const item = res[id];
-      this.initNewObject(obj, item.newId, item.version);
-    });
-
-    await Promise.all(Object.keys(res).map(id => objsMap[id].holder.onCreate()));
-    return obj as any as T;
+        return Promise.all(Object.keys(res).map(id => objsMap[id].holder.onCreate()));
+      })
+      .then(() => null)
+    );
   }
 
   loadObject<T extends OBJIOItem>(id?: string): Promise<T> {
     id = id || '0';
 
-    if (id.startsWith('loc-'))
-      return Promise.reject('local object id detected');
+    if (id.startsWith('loc-')) {
+      const error = `local object id=${id} detected`;
+      this.errorHandler && this.errorHandler({ type: 'loadObject', error });
+      return Promise.reject(error);
+    }
 
     if (this.objectMap[id])
       return Promise.resolve(this.objectMap[id] as T);
@@ -277,6 +301,8 @@ export class OBJIO {
       })).then(() => {
         newObj.holder.updateVersion(store.version);
         return newObj;
+      }).catch(error => {
+        this.errorHandler && this.errorHandler({ type: 'loadObject', error });
       });
     };
 
@@ -291,6 +317,10 @@ export class OBJIO {
         resObj = obj;
         return Promise.all(Object.keys(res).map(id => this.objectMap[id].holder.onLoaded()));
       }).then(() => resObj)
+      .catch(error => {
+        this.errorHandler && this.errorHandler({ type: 'loadObject', error });
+        return resObj;
+      })
     );
   }
 
