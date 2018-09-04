@@ -185,7 +185,7 @@ export class OBJIO {
     return (
       this.store.invokeMethod(obj.holder.getID(), name, args)
       .catch(error => {
-        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj, args: { method: name, args } })
+        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj, args: { method: name, args } });
       })
     );
   }
@@ -332,56 +332,80 @@ export class OBJIO {
     if (writes.length)
       this.updateTasks.append(() => Promise.all(writes));
 
-    return this.updateTasks.append(() => this.updateObjectsImpl(objs));
+    return new Promise(resolve => {
+      return this.updateTasks.append(() => 
+        this.updateObjectsImpl(objs)
+        .then(resolve)
+      );
+    });
   }
 
-  private async updateObjectsImpl(versions: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
+  private updateObjectsImpl(versions: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
     const objs = versions.filter(item => {
       const obj = this.objectMap[item.id];
       return obj == null || obj.getHolder().getVersion() != item.version;
     });
 
-    const updateObject = async (item: { id: string, version: string }) => {
+    const updateObject = (item: { id: string, version: string }) => {
       const obj = this.objectMap[item.id];
       if (!obj) {
-        await this.loadObject(item.id);
-        return { id: item.id, json: null };
+        return (
+          this.loadObject(item.id)
+          .then(() => {
+            return { id: item.id, json: null };
+          })
+        );
       }
 
-      const res = await this.store.readObject(item.id);
-      const { classId, version, json } = res[item.id];
-      const objClass = this.factory.findItem(classId);
-      const extraObjs = objClass.getRelObjIDS(json).filter(id => this.objectMap[id] == null);
-      if (extraObjs.length)
-        await Promise.all(extraObjs.map(id => this.loadObject(id)));
+      return this.store.readObject(item.id)
+      .then(res => res[item.id])
+      .then(res => {
+        const { classId, version, json } = res;
+        const objClass = this.factory.findItem(classId);
+        const extraObjs = objClass.getRelObjIDS(json).filter(id => this.objectMap[id] == null);
+        if (!extraObjs.length)
+          return res;
 
-      await objClass.loadStore({
-        obj,
-        getObject: id => this.objectMap[id] || this.loadObject(id),
-        store: json
+        return Promise.all(extraObjs.map(id => this.loadObject(id))).then(() => res);
+      })
+      .then(res => {
+        const { classId, json} = res;
+        const objClass = this.factory.findItem(classId);
+        return Promise.resolve(
+          objClass.loadStore({
+            obj,
+            getObject: id => this.objectMap[id] || this.loadObject(id),
+            store: json
+          })
+        ).then(() => res);
+      })
+      .then(res => {
+        obj.holder.updateVersion(res.version);
+        obj.holder.onObjChanged();
+        obj.holder.notify();
+
+        return { id: item.id, json: res.json };
       });
-      obj.holder.updateVersion(version);
-      obj.holder.onObjChanged();
-      obj.holder.notify();
-
-      return { id: item.id, json };
     };
 
-    const jsonArr = await Promise.all(objs.map(updateObject));
+    return (
+      Promise.all(objs.map(updateObject))
+      .then(jsonArr => {
+        jsonArr.forEach(item => {
+          if (item.json == null)
+            return;
 
-    jsonArr.forEach(item => {
-      if (item.json == null)
-        return;
+          const obj = this.objectMap[item.id];
+          OBJIOItem.getClass(obj).loadStore({
+            obj,
+            store: item.json,
+            getObject: id => this.objectMap[id]
+          });
+        });
 
-      const obj = this.objectMap[item.id];
-      OBJIOItem.getClass(obj).loadStore({
-        obj,
-        store: item.json,
-        getObject: id => this.objectMap[id]
-      });
-    });
-
-    return objs.map(item => this.objectMap[item.id]);
+        return objs.map(item => this.objectMap[item.id]);
+      })
+    );
   }
 
   startWatch(args: WatchArgs): WatchResult {
@@ -393,35 +417,49 @@ export class OBJIO {
     let run = true;
     let subscribers = Array<(arr: Array<OBJIOItem>) => void>();
 
-    const loop = async () => {
+    const loop = () => {
       if (!run)
         return;
 
+      let task: Promise<any>;
       let w: { version: number };
       try {
-        w = await req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev});
+        task = req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev})
+        .then(res => {
+          w = res;
+
+          if (!prev || w.version != prev.version)
+            return;
+
+          setTimeout(loop, timeOut);
+          return Promise.reject(null);
+        });
       } catch (e) {
         return setTimeout(loop, timeOut);
       }
 
-      if (prev && w.version == prev.version)
-        return setTimeout(loop, timeOut);
+      task
+      .then(() => {
+        return this.getWrites();
+      })
+      .then(() => {
+        prev = w;
+        return req.getJSON<Array<{ id: string, version: string }>>({url: `${baseUrl}items`});
+      })
+      .then(items => {
+        return this.updateObjects(items);
+      })
+      .then(res => {
+        subscribers.forEach(s => {
+          try {
+            s(res);
+          } catch (e) {
+            console.log(e);
+          }
+        });
 
-      await this.getWrites();
-
-      prev = w;
-      const items = await req.getJSON<Array<{ id: string, version: string }>>({url: `${baseUrl}items`});
-      const res = await this.updateObjects(items);
-
-      subscribers.forEach(s => {
-        try {
-          s(res);
-        } catch (e) {
-          console.log(e);
-        }
+        setTimeout(loop, timeOut);
       });
-
-      setTimeout(loop, timeOut);
     };
 
     loop();
