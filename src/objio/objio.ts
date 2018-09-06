@@ -423,20 +423,19 @@ export class OBJIO {
 
       let task: Promise<any>;
       let w: { version: number };
-      try {
-        task = req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev})
-        .then(res => {
-          w = res;
+      task = req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev})
+      .then(res => {
+        w = res;
 
-          if (!prev || w.version != prev.version)
-            return;
+        if (!prev || w.version != prev.version)
+          return;
 
-          setTimeout(loop, timeOut);
-          return Promise.reject(null);
-        });
-      } catch (e) {
-        return setTimeout(loop, timeOut);
-      }
+        setTimeout(loop, timeOut);
+        return Promise.reject(null);
+      })
+      .catch(err => {
+        console.log(err);
+      });
 
       task
       .then(() => {
