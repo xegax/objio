@@ -1,5 +1,5 @@
 import { OBJIOFactory } from './factory';
-import { OBJIOStoreBase } from './store';
+import { OBJIOStoreBase, InvokeMethodArgs } from './store';
 import {
   OBJIOItem,
   OBJIOItemHolder,
@@ -62,14 +62,14 @@ class SavingQueue {
     this.queue = [];
 
     console.log('saving', queue.length, 'objects');
-    return this.store.writeObjects(queue.map(item => {
+    return this.store.writeObjects({ arr: queue.map(item => {
       const holder = item.getHolder();
       return {
         id: holder.getID(),
         json: holder.getJSON(),
         version: holder.getVersion()
       };
-    })).then(objs => {
+    })}).then(objs => {
       objs.items.forEach((obj, i: number) => {
         const holder = queue[i].getHolder() as OBJIOItemHolder;
         holder.updateVersion(obj.version);
@@ -153,9 +153,10 @@ export class OBJIO {
       owner: {
         save: obj => this.saveImpl(obj),
         create: obj => this.createObject(obj),
-        invoke: (obj, name, args) => this.invokeMethod(obj, name, args),
+        invoke: args => this.invokeMethod(args),
         context: () => this.context,
-        getObject: id => this.loadObject(id)
+        getObject: id => this.loadObject(id),
+        getUserId: () => this.getUserId()
       }
     });
     this.objectMap[objId] = obj;
@@ -167,6 +168,10 @@ export class OBJIO {
 
   getContext(): OBJIOContext {
     return this.context;
+  }
+
+  getUserId() {
+    return '';
   }
 
   getFactory(): OBJIOFactory {
@@ -181,11 +186,12 @@ export class OBJIO {
     return this.objectMap;
   }
 
-  invokeMethod(obj: OBJIOItem, name: string, args: Object): Promise<any> {
+  invokeMethod(args: InvokeMethodArgs & { obj: OBJIOItem }): Promise<any> {
+    const { obj, ...invokeArgs } = args;
     return (
-      this.store.invokeMethod(obj.holder.getID(), name, args)
+      this.store.invokeMethod(invokeArgs)
       .catch(error => {
-        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj, args: { method: name, args } });
+        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj, args: { method: name, args: args.args } });
       })
     );
   }
@@ -232,9 +238,10 @@ export class OBJIO {
     });
   }
 
-  createObject(obj: OBJIOItem): Promise<void> {
+  createObject(obj: OBJIOItem, userId?: string): Promise<void> {
     const objs = OBJIOItem.getRelObjs(obj, [obj]);
     const objsJSONMap: CreateObjectsArgs = {
+      userId,
       rootId: obj.holder.getID(),
       objs: {}
     };
@@ -270,7 +277,7 @@ export class OBJIO {
     );
   }
 
-  loadObject<T extends OBJIOItem>(id?: string): Promise<T> {
+  loadObject<T extends OBJIOItem>(id?: string, userId?: string): Promise<T> {
     id = id || '0';
 
     if (id.startsWith('loc-')) {
@@ -296,6 +303,7 @@ export class OBJIO {
       }
 
       return Promise.resolve(objClass.loadStore({
+        userId,
         obj: newObj,
         store: store.json,
         getObject: (id: string) => loadObjectImpl(id, objsMap)
@@ -310,7 +318,7 @@ export class OBJIO {
     let res: ReadResult;
     let resObj: T;
     return (
-      this.store.readObjects(id)
+      this.store.readObjects({ id, userId })
       .then(objsMap => {
         res = objsMap;
         return loadObjectImpl(id, objsMap) as T;
@@ -333,10 +341,10 @@ export class OBJIO {
       this.updateTasks.append(() => Promise.all(writes));
 
     return new Promise(resolve => {
-      return this.updateTasks.append(() => 
+      return this.updateTasks.append(() => (
         this.updateObjectsImpl(objs)
         .then(resolve)
-      );
+      ));
     });
   }
 
@@ -357,7 +365,7 @@ export class OBJIO {
         );
       }
 
-      return this.store.readObject(item.id)
+      return this.store.readObject({id: item.id})
       .then(res => res[item.id])
       .then(res => {
         const { classId, version, json } = res;
@@ -373,6 +381,7 @@ export class OBJIO {
         const objClass = this.factory.findItem(classId);
         return Promise.resolve(
           objClass.loadStore({
+            userId: null,
             obj,
             getObject: id => this.objectMap[id] || this.loadObject(id),
             store: json
@@ -397,6 +406,7 @@ export class OBJIO {
 
           const obj = this.objectMap[item.id];
           OBJIOItem.getClass(obj).loadStore({
+            userId: null,
             obj,
             store: item.json,
             getObject: id => this.objectMap[id]
@@ -422,16 +432,14 @@ export class OBJIO {
         return;
 
       let task: Promise<any>;
-      let w: { version: number };
       task = req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev})
-      .then(res => {
-        w = res;
+      .then((res: { version: number }) => {
+        if (res.version == prev.version) {
+          setTimeout(loop, timeOut);
+          return Promise.reject(null);
+        }
 
-        if (!prev || w.version != prev.version)
-          return;
-
-        setTimeout(loop, timeOut);
-        return Promise.reject(null);
+        prev = { ...res };
       })
       .catch(err => {
         console.log(err);
@@ -442,7 +450,6 @@ export class OBJIO {
         return this.getWrites();
       })
       .then(() => {
-        prev = w;
         return req.getJSON<Array<{ id: string, version: string }>>({url: `${baseUrl}items`});
       })
       .then(items => {

@@ -1,10 +1,12 @@
 import { Publisher } from '../common/publisher';
+import { InvokeMethodArgs } from './store';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
 export type Field = {
   type: Type;
   classId?: string;
+  userCtx?: string;
   tags?: Tags;      // if not defined it is suitable for all tags
 };
 
@@ -45,6 +47,7 @@ interface OBJItemConstructor extends ObjectConstructor {
 }
 
 export interface LoadStoreArgs {
+  userId: string;
   fieldFilter?: FieldFilter;
   obj: OBJIOItem;
   store: Object;
@@ -75,8 +78,9 @@ export interface OBJIOItemHolderOwner {
   save(obj: OBJIOItem): Promise<any>;
   create(obj: OBJIOItem): Promise<void>;
   getObject(id: string): Promise<OBJIOItem>;
-  invoke(obj: OBJIOItem, name: string, args: Object): Promise<any>;
+  invoke(args: InvokeMethodArgs & {obj: OBJIOItem}): Promise<any>;
   context(): OBJIOContext;
+  getUserId(): string;
 }
 
 export interface InitArgs {
@@ -87,7 +91,7 @@ export interface InitArgs {
 }
 
 export interface MethodsToInvoke {
-  [method: string]: (args: Object) => any;
+  [method: string]: (args: Object, userId?: string) => any;
 }
 
 export interface OBJIOEventHandler {
@@ -139,6 +143,10 @@ export class OBJIOItemHolder extends Publisher {
     return this.id;
   }
 
+  getUserId(): string {
+    return this.owner.getUserId();
+  }
+
   onLoaded(): Promise<any> {
     return Promise.all(this.eventHandler.filter(item => item.onLoad).map(handler => handler.onLoad()));
   }
@@ -173,7 +181,7 @@ export class OBJIOItemHolder extends Publisher {
     return this.owner.getObject(id) as Promise<T>;
   }
 
-  getJSON(fieldFilter?: FieldFilter): { [key: string]: number | string | Array<number | string> } {
+  getJSON(fieldFilter?: FieldFilter, userId?: string): { [key: string]: number | string | Array<number | string> } {
     const objClass: OBJIOItemClass = OBJIOItem.getClass(this.obj);
     if (objClass.saveStore) {
       return objClass.saveStore(this.obj);
@@ -182,13 +190,19 @@ export class OBJIOItemHolder extends Publisher {
     let field = SERIALIZE(objClass, fieldFilter);
     let json = {};
     Object.keys(field).forEach(name => {
-      const value = this.obj[name];
+      const fieldItem = field[name];
+      const userCtxMap = this.obj[fieldItem.userCtx];
+
+      let value = this.obj[name];
       if (value == null)
         return;
 
-      if (field[name].type == 'object') {
+      if (fieldItem.type == 'object') {
         json[name] = (value as OBJIOItem).getHolder().getID();
-      } else if (field[name].type == 'json') {
+      } else if (fieldItem.type == 'json') {
+        if (userCtxMap && userCtxMap[userId])
+          value = userCtxMap[userId];
+
         json[name] = JSON.stringify(value);
       } else {
         json[name] = value;
@@ -214,11 +228,11 @@ export class OBJIOItemHolder extends Publisher {
     return this.srvVersion;
   }
 
-  invokeMethod(name: string, args: Object) {
+  invokeMethod(name: string, args: Object, userId?: string) {
     if (!this.owner)
       return Promise.reject('owner not defined');
 
-    return this.owner.invoke(this.obj, name, args);
+    return this.owner.invoke({id: this.id, obj: this.obj, methodName: name, args, userId});
   }
 }
 
@@ -266,6 +280,7 @@ export class OBJIOItem {
         args.obj[ name ] = valueOrID;
       }
     }
+    console.log('modify by', args.userId);
     return Promise.all(promises);
   }
 
@@ -329,7 +344,7 @@ export class OBJIOItem {
     return obj.constructor as any as OBJIOItemClass;
   }
 
-  static invokeMethod(obj: OBJIOItem, name: string, args: Object): Promise<any> {
-    return obj.holder.invokeMethod(name, args);
+  static invokeMethod(obj: OBJIOItem, name: string, args: Object, userId?: string): Promise<any> {
+    return obj.holder.invokeMethod(name, args, userId);
   }
 }

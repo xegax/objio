@@ -1,9 +1,11 @@
 import { Requestor } from '../common/requestor';
+import { ReadObjectArgs, InvokeMethodArgs } from './store';
 import {
   CreateObjectsArgs,
   CreateResult,
   OBJIOStore,
   WriteResult,
+  WriteObjectsArgs,
   ReadResult
 } from './store';
 
@@ -30,39 +32,44 @@ export class OBJIORemoteStore implements OBJIOStore {
     });
   }
 
-  writeObjects(arr: Array<{id: string, json: Object}>): Promise<WriteResult> {
+  writeObjects(args: WriteObjectsArgs): Promise<WriteResult> {
     return this.req.getJSON({
       url: this.getUrl('write-objects'),
-      postData: arr
+      postData: args
     });
   }
 
-  readObject(id: string): Promise<ReadResult> {
+  readObject(args: ReadObjectArgs): Promise<ReadResult> {
     return this.req.getJSON({
       url: this.getUrl('read-object'),
-      postData: {id}
+      postData: args
     });
   }
 
-  readObjects(id: string): Promise<ReadResult> {
+  readObjects(args: ReadObjectArgs): Promise<ReadResult> {
     return this.req.getJSON({
       url: this.getUrl('read-objects'),
-      postData: {id}
+      postData: args
     });
   }
 
-  invokeMethod(id: string, method: string, args: Object): Promise<any> {
-    if (args instanceof File) {
+  invokeMethod(args: InvokeMethodArgs): Promise<any> {
+    if (args.args instanceof File) {
       return this.req.getData({
         url: this.getUrl('send-file'),
-        params: {id, name: args.name, size: args.size, mime: args.type},
-        postData: args
+        params: {
+          id: args.id,
+          name: args.args['name'],
+          size: args.args['size'],
+          mime: args.args['type']
+        },
+        postData: args.args
       });
     }
 
     return this.req.getJSON({
       url: this.getUrl('invoke-method'),
-      postData: {id, method, args}
+      postData: { id: args.id, method: args.methodName, args: args.args }
     });
   }
 

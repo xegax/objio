@@ -1,4 +1,4 @@
-import { Server, Handler, createServer, DataHandler, Params } from './server';
+import { Server, createServer, Params as ParamsBase, DataParams as DataParamsBase } from './server';
 import {
   OBJIOFactory,
   WriteObjectsArgs,
@@ -9,6 +9,26 @@ import {
 } from '../index';
 import { OBJIOFSLocalStore } from './objio-fs-store';
 import { existsSync, lstatSync } from 'fs';
+
+interface Params<GET, POST, COOKIE> extends ParamsBase<GET, POST, COOKIE> {
+  userId: string;
+}
+
+type Handler<GET, POST, COOKIE> = (
+  params: Params<GET, POST, COOKIE>,
+  addOnClose?: (handler: () => void) => void
+) => void;
+
+interface DataParams<GET, COOKIE> extends DataParamsBase<GET, COOKIE> {
+  get: GET;
+  userId: string;
+}
+
+type DataHandler<GET, COOKIE> = (
+  params: DataParams<GET, COOKIE>,
+  resolve: (result: any) => void,
+  reject: (err: any) => void
+) => void;
 
 export interface ServerArgs {
   prjsDir: string;
@@ -28,6 +48,7 @@ interface Cookies {
 }
 
 interface User {
+  id: string;
   login: string;
   password: string;
   rights: Array<AccessType>;
@@ -41,7 +62,13 @@ interface Session {
 
 const users: Array<User> = [
   {
+    id: '0x12345ABCDEF',
     login: 'guest',
+    password: '',
+    rights: ['read', 'write']
+  }, {
+    id: '0xFFEEABC000',
+    login: 'xega',
     password: '',
     rights: ['read', 'write']
   }
@@ -99,14 +126,32 @@ class RestrictionPolicy {
       if (sess.user.rights.indexOf(accessType) == -1)
         return params.error('Forbidden', 403);
 
-      handler(params, addOnClose);
+      const nextParams = { ...params, userId: sess.user.id };
+      handler(nextParams, addOnClose);
     }, addOnClose);
   }
 
   addDataHandler<GET>( accessType: AccessType,
                        url: string,
-                       handler: DataHandler<GET>) {
-    this.srv.addDataHandler(url, handler);
+                       handler: DataHandler<GET, Cookies>) {
+    this.srv.addDataHandler(
+      url,
+      (
+        params: DataParams<GET, Cookies>,
+        resolve: (res: any) => void,
+        reject: (err: any) => void) => {
+          const sess = this.checkAndGetSession(params.cookie.sessId);
+          if (!sess)
+            return reject('Authorization required');
+
+          sess.lastTime = new Date();
+          if (sess.user.rights.indexOf(accessType) == -1)
+            return reject('Forbidden');
+
+          let userId = sess.user.id;
+          handler({...params, userId}, resolve, reject);
+      }
+    );
   }
 }
 
@@ -258,7 +303,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
       const methods = obj.holder.getMethodsToInvoke();
       if ('send-file' in methods)
-        methods['send-file']({ ...params.get, data: params.stream }).then(() => done({}));
+        methods['send-file']({ ...params.get, data: params.stream }, params.userId).then(() => done({}));
       else
         error(`method send-file of this object type = "${OBJIOItem.getClass(obj).TYPE_ID}" not found!`);
     });
@@ -271,7 +316,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, WriteObjectsArgs>('write', 'write-objects', async (params) => {
     const { store } = await getPrj(params.get, args.factory, prjsDir);
-    const res = await store.writeObjects(params.post);
+    const res = await store.writeObjects({...params.post, userId: params.userId});
 
     const removed = res.removed;
     if (removed.length) {
@@ -284,7 +329,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   srv.addJsonHandler<PrjData, {id: string}>('read', 'read-object', async (params) => {
     try {
       const { store } = await getPrj(params.get, args.factory, prjsDir);
-      params.done(await store.readObject(params.post.id));
+      params.done(await store.readObject({id: params.post.id, userId: params.userId}));
     } catch (e) {
       params.error(e.toString());
     }
@@ -293,7 +338,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   srv.addJsonHandler<PrjData, {id: string}>('read', 'read-objects', async (params) => {
     try {
       const { store } = await getPrj(params.get, args.factory, prjsDir);
-      params.done(await store.readObjects(params.post.id));
+      params.done(await store.readObjects({id: params.post.id, userId: params.userId}));
     } catch (e) {
       params.error(e.toString());
     }
@@ -302,7 +347,12 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   srv.addJsonHandler<PrjData, {id: string, method: string, args: Object}>('write', 'invoke-method', async (params) => {
     try {
       const { store } = await getPrj(params.get, args.factory, prjsDir);
-      params.done(await store.invokeMethod(params.post.id, params.post.method, params.post.args) || {});
+      params.done(await store.invokeMethod({
+        userId: params.userId,
+        id: params.post.id,
+        methodName: params.post.method,
+        args: params.post.args
+      }) || {});
     } catch (e) {
       params.error(e.toString());
     }

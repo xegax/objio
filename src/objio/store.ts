@@ -20,22 +20,39 @@ export interface CreateResult {
 }
 
 export type CreateObjectsArgs = {
+  userId: string;
   rootId: string;
   objs: {[id: string]: { classId: string, json: Object }};
 };
-export type WriteObjectsArgs = Array<{ id: string, json: Object, version: string }>;
+
+export type WriteObjectsArgs = {
+  arr: Array<{ id: string, json: Object, version: string }>;
+  userId?: string;
+};
+
+export type ReadObjectArgs = {
+  id: string;
+  userId?: string;
+};
+
+export type InvokeMethodArgs = {
+  id: string;
+  methodName: string;
+  userId: string;
+  args: Object;
+};
 
 export interface OBJIOStore {
   createObjects(args: CreateObjectsArgs): Promise<CreateResult>;
   writeObjects(args: WriteObjectsArgs): Promise<WriteResult>;
 
   // read all objects tree
-  readObjects(id: string): Promise<ReadResult>;
+  readObjects(args: ReadObjectArgs): Promise<ReadResult>;
 
   // read only one object
-  readObject(id: string): Promise<ReadResult>;
+  readObject(args: ReadObjectArgs): Promise<ReadResult>;
 
-  invokeMethod(id: string, method: string, args: Object): Promise<any>;
+  invokeMethod(args: InvokeMethodArgs): Promise<any>;
 
   getAllObjIDS(): Promise<Set<string>>;
   removeObjs(ids: Set<string>): Promise<any>;
@@ -75,16 +92,16 @@ export class OBJIOStoreBase implements OBJIOStore {
     return this.pushWrite(this.storeImpl.writeObjects(args));
   }
 
-  readObject(id: string): Promise<ReadResult> {
-    return this.storeImpl.readObject(id);
+  readObject(args: ReadObjectArgs): Promise<ReadResult> {
+    return this.storeImpl.readObject(args);
   }
 
-  readObjects(id: string): Promise<ReadResult> {
-    return this.storeImpl.readObjects(id);
+  readObjects(args: ReadObjectArgs): Promise<ReadResult> {
+    return this.storeImpl.readObjects(args);
   }
 
-  invokeMethod(id: string, method: string, args: Object): Promise<any> {
-    return this.storeImpl.invokeMethod(id, method, args);
+  invokeMethod(args: InvokeMethodArgs): Promise<any> {
+    return this.storeImpl.invokeMethod(args);
   }
 
   getAllObjIDS(): Promise<Set<string>> {
@@ -186,14 +203,14 @@ export class OBJIOLocalStore implements OBJIOStore {
     return Promise.resolve(res);
   }
 
-  writeObjects(arr: WriteObjectsArgs): Promise<WriteResult> {
+  writeObjects(args: WriteObjectsArgs): Promise<WriteResult> {
     const removed = Array<string>();
 
     // запоминаем id объектов
-    const getIDS = () => {
+    /*const getIDS = () => {
       const ids: {[id: string]: number} = {};
       try {
-        arr.forEach(obj => {
+        args.arr.forEach(obj => {
           const {classId, data} = this.objects[obj.id];
           const classItem = this.factory.findItem(classId);
           if (!classItem)
@@ -214,11 +231,11 @@ export class OBJIOLocalStore implements OBJIOStore {
       return ids;
     };
 
-    const firstCheckIds = getIDS();
+    const firstCheckIds = getIDS();*/
 
-    const items = this.writeObjectsImpl(arr);
+    const items = this.writeObjectsImpl(args);
 
-    const secondCheckIds = getIDS();
+    /*const secondCheckIds = getIDS();
 
     const removedIds: {[id: string]: number} = {};
     Object.keys(firstCheckIds).forEach(id => {
@@ -243,14 +260,14 @@ export class OBJIOLocalStore implements OBJIOStore {
         removed.push(id);
         delete this.objects[id];
       }
-    });
+    });*/
 
     return Promise.resolve({items, removed});
   }
 
-  private writeObjectsImpl(arr: WriteObjectsArgs) {
+  private writeObjectsImpl(args: WriteObjectsArgs) {
     // TODO: добавить проверку полей по typeId
-    return arr.map(item => {
+    return args.arr.map(item => {
       const currData = this.objects[item.id];
       const newData = {...currData.data, ...item.json};
 
@@ -277,7 +294,8 @@ export class OBJIOLocalStore implements OBJIOStore {
     });
   }
 
-  private readObjectResult(id: string, res: ReadResult, deep: boolean) {
+  private readObjectResult(args: ReadObjectArgs, res: ReadResult, deep: boolean) {
+    const id = args.id;
     if (res[id])
       return;
 
@@ -299,34 +317,34 @@ export class OBJIOLocalStore implements OBJIOStore {
       return;
 
     if (classItem.getRelObjIDS)
-      classItem.getRelObjIDS(objStore.data).forEach(id => this.readObjectResult(id, res, deep));
+      classItem.getRelObjIDS(objStore.data).forEach(id => this.readObjectResult({ ...args, id }, res, deep));
 
     const fields = SERIALIZE(classItem, this.fieldFilter);
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')
         return;
 
-      const nextId = objStore.data[name];
+      const nextId: string = objStore.data[name];
       if (nextId)
-        this.readObjectResult(nextId, res, deep);
+        this.readObjectResult({ ...args, id: nextId }, res, deep);
     });
   }
 
-  readObjects(id: string): Promise<ReadResult> {
+  readObjects(args: ReadObjectArgs): Promise<ReadResult> {
     const res: ReadResult = {};
-    this.readObjectResult(id, res, true);
+    this.readObjectResult(args, res, true);
 
     return Promise.resolve(res);
   }
 
-  readObject(id: string): Promise<ReadResult> {
+  readObject(args: ReadObjectArgs): Promise<ReadResult> {
     const res: ReadResult = {};
-    this.readObjectResult(id, res, false);
+    this.readObjectResult(args, res, false);
 
     return Promise.resolve(res);
   }
 
-  invokeMethod(id: string, method: string, args: Object): Promise<any> {
+  invokeMethod(args: InvokeMethodArgs): Promise<any> {
     return null;
   }
 

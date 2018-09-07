@@ -16,15 +16,21 @@ export type Handler<GET, POST, COOKIE> = (
   addOnClose?: (handler: () => void) => void
 ) => void;
 
-export type DataHandler<GET> = (
-  params: {get: GET, stream: http.IncomingMessage},
+export interface DataParams<GET, COOKIE> {
+  get: GET;
+  stream: http.IncomingMessage;
+  cookie: COOKIE;
+}
+
+export type DataHandler<GET, COOKIE> = (
+  params: DataParams<GET, COOKIE>,
   resolve: (result: any) => void,
   reject: (err: any) => void
 ) => void;
 
 export interface HandlerHolder {
   type: 'json' | 'data';
-  handler: Handler<any, any, any> | DataHandler<any>;
+  handler: Handler<any, any, any> | DataHandler<any, any>;
   addOnClose: (handler: () => void) => void;
 }
 
@@ -32,7 +38,7 @@ export interface Server {
   addJsonHandler<GET, POST, COOKIE>( url: string,
                                      handler: Handler<GET, POST, COOKIE>,
                                     addOnClose?: (handler: () => void) => void );
-  addDataHandler<GET>(url: string, handler: DataHandler<GET>);
+  addDataHandler<GET, COOKIE>(url: string, handler: DataHandler<GET, COOKIE>);
 }
 
 function parseUrl(str) {
@@ -99,7 +105,7 @@ export class ServerImpl implements Server  {
     this.handlerMap[url] = {type: 'json', handler, addOnClose};
   }
 
-  addDataHandler<GET>(url: string, handler: DataHandler<GET>) {
+  addDataHandler<GET, COOKIE>(url: string, handler: DataHandler<GET, COOKIE>) {
     this.handlerMap[url] = {type: 'data', handler, addOnClose: () => {}};
   }
 
@@ -146,7 +152,7 @@ export class ServerImpl implements Server  {
 
     if (request.method == 'POST') {
       const jsonHandler = holder.handler as Handler<any, any, any>;
-      const dataHandler = holder.handler as DataHandler<any>;
+      const dataHandler = holder.handler as DataHandler<any, any>;
 
       let postData = '';
       let postJSON: any;
@@ -156,8 +162,16 @@ export class ServerImpl implements Server  {
         request.on('data', (data: Buffer) => {
           postData += data.toString();
         });
-      else
-        dataHandler({get: params, stream: request}, writeOK, writeErr);
+      else {
+        dataHandler({
+            get: params,
+            stream: request,
+            cookie
+          },
+          writeOK,
+          writeErr
+        );
+      }
 
       if (holder.type == 'json')
         request.on('end', () => {

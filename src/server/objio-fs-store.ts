@@ -54,19 +54,16 @@ export class OBJIOFSLocalStore extends OBJIOLocalStore {
     });
   }
 
-  writeObjects(arr: WriteObjectsArgs): Promise<WriteResult> {
-    arr.forEach(obj => this.loadObjectIfNeed(obj.id));
+  writeObjects(args: WriteObjectsArgs): Promise<WriteResult> {
+    args.arr.forEach(obj => this.loadObjectIfNeed(obj.id));
 
-    return super.writeObjects(arr).then(res => {
+    return super.writeObjects(args).then(res => {
       res.items.forEach((obj, i) => {
-        const id = arr[i].id;
+        const id = args.arr[i].id;
         writeFileSync(this.getObjPath(id), JSON.stringify(this.getObjectData(id)));
       });
 
-      const unlinkAsync = promisify(unlink);
-      return Promise.all(res.removed.map(id => {
-        return unlinkAsync(this.getObjPath(id));
-      })).then(() => res);
+      return res;
     });
   }
 
@@ -93,7 +90,7 @@ export class OBJIOFSLocalStore extends OBJIOLocalStore {
       const file = this.getObjPath(id);
       if (!existsSync(file))
         return;
-      
+
       console.log('remove obj file', file);
       unlinkSync(file);
     });
