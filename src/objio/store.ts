@@ -2,19 +2,22 @@ import { OBJIOFactory} from './factory';
 import { cloneDeep } from 'lodash';
 import { Tags, SERIALIZE, FieldFilter } from './item';
 
+export interface JSONObj {
+  [key: string]: string | number;
+}
+
 export interface WriteResult {
-  items: Array<{ id: string, json: Object, version: string }>;
+  items: Array<{ id: string, version: string }>;
   removed: Array<string>;
 }
 
 export interface ReadResult {
-  [id: string]: { classId: string; version: string; json: Object };
+  [id: string]: { classId: string; version: string; json: JSONObj };
 }
 
 export interface CreateResult {
   [id: string]: {
     newId: string;
-    json: Object;
     version: string;
   };
 }
@@ -22,11 +25,11 @@ export interface CreateResult {
 export type CreateObjectsArgs = {
   userId: string;
   rootId: string;
-  objs: {[id: string]: { classId: string, json: Object }};
+  objs: {[id: string]: { classId: string, json: JSONObj }};
 };
 
 export type WriteObjectsArgs = {
-  arr: Array<{ id: string, json: Object, version: string }>;
+  arr: Array<{ id: string, json: JSONObj, version: string }>;
   userId?: string;
 };
 
@@ -118,9 +121,11 @@ export class OBJIOStoreBase implements OBJIOStore {
 }
 
 export interface ObjStore {
-  data: Object;
+  data: JSONObj;
   classId: string;
   version: string;
+  userId: string;
+  time: number;
 }
 
 export interface StoreData {
@@ -178,17 +183,19 @@ export class OBJIOLocalStore implements OBJIOStore {
       const storeItem = this.objects[newId] = {
         data: obj.json || {},
         classId: obj.classId,
-        version: nextVersion('')
+        version: nextVersion(''),
+        userId: args.userId,
+        time: Date.now()
       };
 
       res[id] = {
-        newId: newId,
-        json: storeItem.data,
+        newId,
+        // json: storeItem.data,
         version: storeItem.version
       };
     });
 
-    Object.keys(res).forEach(id => {
+    /*Object.keys(res).forEach(id => {
       const { newId, json } = res[id];
       const objClass = this.factory.findItem(this.objects[newId].classId);
       const replaceID = id => {
@@ -198,7 +205,7 @@ export class OBJIOLocalStore implements OBJIOStore {
         return res[id].newId;
       };
       objClass.getRelObjIDS(json, replaceID);
-    });
+    });*/
 
     return Promise.resolve(res);
   }
@@ -269,7 +276,7 @@ export class OBJIOLocalStore implements OBJIOStore {
     // TODO: добавить проверку полей по typeId
     return args.arr.map(item => {
       const currData = this.objects[item.id];
-      const newData = {...currData.data, ...item.json};
+      const newData: JSONObj = {...currData.data, ...item.json};
 
       let upd = 0;
       Object.keys(newData).forEach(key => {
@@ -324,7 +331,7 @@ export class OBJIOLocalStore implements OBJIOStore {
       if (fields[name].type != 'object')
         return;
 
-      const nextId: string = objStore.data[name];
+      const nextId: string = objStore.data[name] + '';
       if (nextId)
         this.readObjectResult({ ...args, id: nextId }, res, deep);
     });

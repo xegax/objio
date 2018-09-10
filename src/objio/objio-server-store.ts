@@ -38,41 +38,44 @@ export class OBJIOServerStore implements OBJIOStore {
 
   async createObjects(args: CreateObjectsArgs): Promise<CreateResult> {
     let objsMap: {[id: string]: OBJIOItem} = {};
-    let tasks: Array<Promise<any>> = [];
+    // create all uncreated objects
     Object.keys(args.objs).forEach(id => {
       const item = args.objs[id];
       const objClass = this.factory.findItem(item.classId);
       objsMap[id] = this.objio.getObject(id) || objClass.create();
     });
 
-    await Promise.all(tasks);
-
-    tasks = [];
+    let tasks = [];
+    // initialize just created objects by the values passed from client
     Object.keys(objsMap).forEach(id => {
       const obj = objsMap[id];
       const store = args.objs[id].json;
       const objClass = OBJIOItem.getClass(obj);
       if (this.objio.getObject(id))
         return;
-      const task = objClass.loadStore({
+
+      const task = objClass.writeToObject({
+        create: true,
         userId: args.userId,
         obj,
         store,
         getObject: id => objsMap[id] || this.objio.loadObject(id)
       });
+
       if (task)
         tasks.push(task);
     });
 
     await Promise.all(tasks);
-    await this.objio.createObject(objsMap[args.rootId]);
+    // wait for objio to write all object to store
+    await this.objio.createObject(objsMap[args.rootId], args.userId);
 
     let res: CreateResult = {};
     Object.keys(objsMap).forEach(id => {
       const obj = objsMap[id];
       res[id] = {
         newId: obj.holder.getID(),
-        json: obj.holder.getJSON(this.includeFilter),
+        // json: obj.holder.getJSON({fieldFilter: this.includeFilter}),
         version: obj.holder.getVersion()
       };
     });
@@ -93,7 +96,7 @@ export class OBJIOServerStore implements OBJIOStore {
     args.arr.forEach(item =>  {
       const obj = objsMap[item.id];
       const objClass = OBJIOItem.getClass(obj);
-      const task = objClass.loadStore({
+      const task = objClass.writeToObject({
         userId: args.userId,
         fieldFilter: this.includeFilter,
         obj,
@@ -116,7 +119,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[item.id];
       res.items.push({
         id: item.id,
-        json: obj.holder.getJSON(this.includeFilter),
+        // json: obj.holder.getJSON({fieldFilter: this.includeFilter}),
         version: obj.holder.getVersion()
       });
     });
@@ -140,13 +143,13 @@ export class OBJIOServerStore implements OBJIOStore {
     res[id] = {
       classId: classItem.TYPE_ID,
       version: obj.holder.getVersion(),
-      json: obj.holder.getJSON(this.includeFilter, args.userId)
+      json: obj.holder.getJSON({fieldFilter: this.includeFilter, userId: args.userId})
     };
 
     if (!deep)
       return;
 
-    const json = obj.holder.getJSON(this.includeFilter, args.userId);
+    const json = obj.holder.getJSON({fieldFilter: this.includeFilter, userId: args.userId});
     if (classItem.getRelObjIDS)
       await Promise.all(classItem.getRelObjIDS(json).map(id => this.readObjectResult({ ...args, id }, res, deep)));
 

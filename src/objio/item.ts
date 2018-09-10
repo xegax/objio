@@ -1,5 +1,5 @@
 import { Publisher } from '../common/publisher';
-import { InvokeMethodArgs } from './store';
+import { InvokeMethodArgs, JSONObj } from './store';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
@@ -7,6 +7,7 @@ export type Field = {
   type: Type;
   classId?: string;
   userCtx?: string;
+  const?: boolean;  // this value can not be modified
   tags?: Tags;      // if not defined it is suitable for all tags
 };
 
@@ -46,7 +47,8 @@ interface OBJItemConstructor extends ObjectConstructor {
   new(json?: any): OBJIOItem;
 }
 
-export interface LoadStoreArgs {
+export interface WriteToObjectArgs {
+  create?: boolean;   //  writeToObject to initialize
   userId: string;
   fieldFilter?: FieldFilter;
   obj: OBJIOItem;
@@ -55,14 +57,14 @@ export interface LoadStoreArgs {
 }
 
 export type SaveStoreResult = { [key: string]: number | string };
-export type LoadStoreResult = Promise<any> | void;
+export type WriteToObjResult = Promise<any> | void;
 export type GetRelObjIDSResult = Array<string>;
 
 export interface OBJIOItemClass {
   TYPE_ID: string;
   SERIALIZE: SERIALIZER;
 
-  loadStore?(args: LoadStoreArgs): LoadStoreResult;
+  writeToObject?(args: WriteToObjectArgs): WriteToObjResult;
   saveStore?(obj: OBJIOItem): SaveStoreResult;
   getRelObjIDS?(store: Object, replaceID?: (id: string) => string): GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
@@ -94,6 +96,17 @@ export interface MethodsToInvoke {
   [method: string]: (args: Object, userId?: string) => any;
 }
 
+export interface GetJsonArgs {
+  fieldFilter?: FieldFilter;
+  userId?: string;
+  diff?: boolean;
+}
+
+export interface UpdateSrvDataArgs {
+  json: JSONObj;
+  version: string;
+}
+
 export interface OBJIOEventHandler {
   onLoad(): Promise<any>;
   onCreate(): Promise<any>;
@@ -109,6 +122,7 @@ export class OBJIOItemHolder extends Publisher {
   private eventHandler: Array<Partial<OBJIOEventHandler>> = [];
 
   private srvVersion: string = '';
+  private srvJson: {[name: string]: string | number} = {};
 
   constructor(args?: InitArgs) {
     super();
@@ -181,13 +195,15 @@ export class OBJIOItemHolder extends Publisher {
     return this.owner.getObject(id) as Promise<T>;
   }
 
-  getJSON(fieldFilter?: FieldFilter, userId?: string): { [key: string]: number | string | Array<number | string> } {
+  getJSON(args?: GetJsonArgs): { [key: string]: number | string } {
+    args = args || {};
     const objClass: OBJIOItemClass = OBJIOItem.getClass(this.obj);
     if (objClass.saveStore) {
       return objClass.saveStore(this.obj);
     }
 
-    let field = SERIALIZE(objClass, fieldFilter);
+    const userId = args.userId;
+    let field = SERIALIZE(objClass, args.fieldFilter);
     let json = {};
     Object.keys(field).forEach(name => {
       const fieldItem = field[name];
@@ -197,19 +213,32 @@ export class OBJIOItemHolder extends Publisher {
       if (value == null)
         return;
 
+      let newValue: string;
       if (fieldItem.type == 'object') {
-        json[name] = (value as OBJIOItem).getHolder().getID();
+        newValue = (value as OBJIOItem).getHolder().getID();
       } else if (fieldItem.type == 'json') {
         if (userCtxMap && userCtxMap[userId])
           value = userCtxMap[userId];
 
-        json[name] = JSON.stringify(value);
+        newValue = JSON.stringify(value);
       } else {
-        json[name] = value;
+        newValue = value;
       }
+
+      if (args.diff && this.srvJson[name] == newValue)
+        return;
+
+      json[ name ] = newValue;
     });
 
     return json;
+  }
+
+  updateSrvData(args: UpdateSrvDataArgs): void {
+    Object.keys(args.json).forEach(key => {
+      this.srvJson[key] = args.json[key];
+    });
+    this.srvVersion = args.version;
   }
 
   static getFilePath(ctx: OBJIOContext, f: string): string {
@@ -218,10 +247,6 @@ export class OBJIOItemHolder extends Publisher {
 
   getFilePath(file: string) {
     return OBJIOItemHolder.getFilePath(this.owner.context(), file);
-  }
-
-  updateVersion(version: string) {
-    this.srvVersion = version;
   }
 
   getVersion(): string {
@@ -249,7 +274,7 @@ export class OBJIOItem {
     return this.holder;
   }
 
-  static loadStore(args: LoadStoreArgs): LoadStoreResult {
+  static writeToObject(args: WriteToObjectArgs): WriteToObjResult {
     const fields = SERIALIZE(this.getClass(), args.fieldFilter);
     const names = Object.keys(fields);
     let promises = Array<Promise<any>>();
@@ -257,6 +282,11 @@ export class OBJIOItem {
       const name = names[n];
       const field = fields[ name ];
       const valueOrID = args.store[ name ];
+      
+      if (!args.create && field.const && args.obj[ name ]) {
+        console.error('trying to modify constant field', this.getClass().TYPE_ID + '.' + name);
+        continue;
+      }
 
       if (field.type == 'object') {
         // it may be new fields
@@ -280,7 +310,6 @@ export class OBJIOItem {
         args.obj[ name ] = valueOrID;
       }
     }
-    console.log('modify by', args.userId);
     return Promise.all(promises);
   }
 

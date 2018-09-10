@@ -30,7 +30,8 @@ describe('OBJIOArray', () => {
       arr: JSON.stringify( getIDS(objsArr) )
     };
 
-    const res = OBJIOArray.loadStore({
+    const res = OBJIOArray.writeToObject({
+      userId: '?',
       obj,
       store,
       getObject: id => map[id]

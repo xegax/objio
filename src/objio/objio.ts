@@ -62,21 +62,27 @@ class SavingQueue {
     this.queue = [];
 
     console.log('saving', queue.length, 'objects');
-    return this.store.writeObjects({ arr: queue.map(item => {
-      const holder = item.getHolder();
+    const arr = queue.map(item => {
       return {
-        id: holder.getID(),
-        json: holder.getJSON(),
-        version: holder.getVersion()
+        id: item.holder.getID(),
+        json: item.holder.getJSON({diff: true}),
+        version: item.holder.getVersion()
       };
-    })}).then(objs => {
-      objs.items.forEach((obj, i: number) => {
-        const holder = queue[i].getHolder() as OBJIOItemHolder;
-        holder.updateVersion(obj.version);
-      });
+    }).filter(item => Object.keys(item.json).length != 0);
 
-      this.objio.notifyOnSave(queue);
-    });
+    return (
+      this.store.writeObjects({ arr })
+      .then(objs => {
+        objs.items.forEach((obj, i: number) => {
+          queue[i].holder.updateSrvData({
+            json: queue[i].holder.getJSON(),//obj.json,
+            version: obj.version
+          });
+        });
+
+        this.objio.notifyOnSave(queue);
+      })
+    );
   }
 }
 
@@ -302,13 +308,13 @@ export class OBJIO {
         this.initNewObject(newObj, objId, store.version);
       }
 
-      return Promise.resolve(objClass.loadStore({
+      return Promise.resolve(objClass.writeToObject({
         userId,
         obj: newObj,
         store: store.json,
         getObject: (id: string) => loadObjectImpl(id, objsMap)
       })).then(() => {
-        newObj.holder.updateVersion(store.version);
+        newObj.holder.updateSrvData({ json: store.json, version: store.version });
         return newObj;
       }).catch(error => {
         this.errorHandler && this.errorHandler({ type: 'loadObject', error, args: { id } });
@@ -380,7 +386,7 @@ export class OBJIO {
         const { classId, json} = res;
         const objClass = this.factory.findItem(classId);
         return Promise.resolve(
-          objClass.loadStore({
+          objClass.writeToObject({
             userId: null,
             obj,
             getObject: id => this.objectMap[id] || this.loadObject(id),
@@ -389,7 +395,7 @@ export class OBJIO {
         ).then(() => res);
       })
       .then(res => {
-        obj.holder.updateVersion(res.version);
+        obj.holder.updateSrvData({json: res.json, version: res.version});
         obj.holder.onObjChanged();
         obj.holder.notify();
 
@@ -405,7 +411,7 @@ export class OBJIO {
             return;
 
           const obj = this.objectMap[item.id];
-          OBJIOItem.getClass(obj).loadStore({
+          OBJIOItem.getClass(obj).writeToObject({
             userId: null,
             obj,
             store: item.json,
@@ -427,30 +433,43 @@ export class OBJIO {
     let run = true;
     let subscribers = Array<(arr: Array<OBJIOItem>) => void>();
 
+    const getVersion = () => {
+      return (
+        req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev})
+        .then((res: { version: number }) => {
+          if (res.version == prev.version) {
+            setTimeout(loop, timeOut);
+            return Promise.reject(null);
+          }
+
+          prev = { ...res };
+        })
+      );
+    };
+
+    const update = (tryCounter: number) => {
+      return (
+        req.getJSON<Array<{ id: string, version: string }>>({url: `${baseUrl}items`})
+        .catch(err => {
+          console.log('get items err', tryCounter - 1, err);
+          if (tryCounter <= 0)
+            return;
+
+          return timer(1000).then(() => update(tryCounter - 1));
+        })
+      );
+    };
+
     const loop = () => {
       if (!run)
         return;
 
-      let task: Promise<any>;
-      task = req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev})
-      .then((res: { version: number }) => {
-        if (res.version == prev.version) {
-          setTimeout(loop, timeOut);
-          return Promise.reject(null);
-        }
-
-        prev = { ...res };
-      })
-      .catch(err => {
-        console.log(err);
-      });
-
-      task
+      getVersion()
       .then(() => {
         return this.getWrites();
       })
       .then(() => {
-        return req.getJSON<Array<{ id: string, version: string }>>({url: `${baseUrl}items`});
+        return update(5);
       })
       .then(items => {
         return this.updateObjects(items);
@@ -465,6 +484,10 @@ export class OBJIO {
         });
 
         setTimeout(loop, timeOut);
+      })
+      .catch(err => {
+        console.log(err);
+        setTimeout(loop, 1000);
       });
     };
 

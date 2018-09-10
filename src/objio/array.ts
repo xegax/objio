@@ -1,6 +1,6 @@
 import {
   OBJIOItem,
-  LoadStoreArgs,
+  WriteToObjectArgs,
   SERIALIZER,
   OBJIOItemHolder,
   SaveStoreResult,
@@ -49,9 +49,9 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
   static TYPE_ID = 'OBJIOArray';
   static SERIALIZE: SERIALIZER = () => ({
     'arr': { type: 'json' }
-  });
+  })
 
-  static async loadStore(args: LoadStoreArgs) {
+  static async writeToObject(args: WriteToObjectArgs) {
     const obj = args.obj as OBJIOArray;
     const store = args.store as { arr: string };
     const arr = JSON.parse(store.arr) as Array<string>;
