@@ -75,7 +75,7 @@ class SavingQueue {
       .then(objs => {
         objs.items.forEach((obj, i: number) => {
           queue[i].holder.updateSrvData({
-            json: queue[i].holder.getJSON(),//obj.json,
+            json: queue[i].holder.getJSON(), // obj.json,
             version: obj.version
           });
         });
@@ -105,6 +105,7 @@ export interface OBJIOArgs {
   store: OBJIOStore;
   saveTime?: number;
   context?: OBJIOContext;
+  server?: boolean;
 }
 
 export class OBJIO {
@@ -117,6 +118,7 @@ export class OBJIO {
     path: ''
   };
   private errorHandler: ErrorHandler;
+  private server: boolean = false;
 
   static create(args: OBJIOArgs): Promise<OBJIO> {
     let obj = new OBJIO();
@@ -124,6 +126,7 @@ export class OBJIO {
     obj.factory = args.factory;
     obj.savingQueue = new SavingQueue(args.saveTime || 100, args.store, obj);
     obj.context = {...obj.context, ...(args.context || {})};
+    obj.server = args.server == true;
 
     return Promise.resolve(obj);
   }
@@ -162,7 +165,8 @@ export class OBJIO {
         invoke: args => this.invokeMethod(args),
         context: () => this.context,
         getObject: id => this.loadObject(id),
-        getUserId: () => this.getUserId()
+        getUserId: () => this.getUserId(),
+        isClient: () => this.isClient()
       }
     });
     this.objectMap[objId] = obj;
@@ -170,6 +174,10 @@ export class OBJIO {
 
   private saveImpl = (obj: OBJIOItem) => {
     return this.savingQueue.addToSave(obj);
+  }
+
+  isClient(): boolean {
+    return !this.server;
   }
 
   getContext(): OBJIOContext {

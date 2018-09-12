@@ -173,6 +173,7 @@ export class OBJIOLocalStore implements OBJIOStore {
   createObjects(args: CreateObjectsArgs): Promise<CreateResult> {
     const res: CreateResult = {};
 
+    let jsonMap: {[id: string]: JSONObj} = {};
     Object.keys(args.objs).forEach(id => {
       const obj = args.objs[id];
 
@@ -190,13 +191,16 @@ export class OBJIOLocalStore implements OBJIOStore {
 
       res[id] = {
         newId,
-        // json: storeItem.data,
         version: storeItem.version
       };
+
+      jsonMap[id] = obj.json;
     });
 
-    /*Object.keys(res).forEach(id => {
-      const { newId, json } = res[id];
+    // replace loc-id to new ids
+    Object.keys(res).forEach(id => {
+      const json = jsonMap[id];
+      const { newId } = res[id];
       const objClass = this.factory.findItem(this.objects[newId].classId);
       const replaceID = id => {
         if (this.objects[id])
@@ -205,7 +209,7 @@ export class OBJIOLocalStore implements OBJIOStore {
         return res[id].newId;
       };
       objClass.getRelObjIDS(json, replaceID);
-    });*/
+    });
 
     return Promise.resolve(res);
   }

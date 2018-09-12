@@ -83,6 +83,7 @@ export interface OBJIOItemHolderOwner {
   invoke(args: InvokeMethodArgs & {obj: OBJIOItem}): Promise<any>;
   context(): OBJIOContext;
   getUserId(): string;
+  isClient(): boolean;
 }
 
 export interface InitArgs {
@@ -135,6 +136,10 @@ export class OBJIOItemHolder extends Publisher {
     holder.obj = args.obj;
     holder.srvVersion = args.version;
     holder.owner = args.owner;
+  }
+
+  isClient(): boolean {
+    return this.owner.isClient();
   }
 
   setMethodsToInvoke(methods: MethodsToInvoke) {
@@ -282,7 +287,7 @@ export class OBJIOItem {
       const name = names[n];
       const field = fields[ name ];
       const valueOrID = args.store[ name ];
-      
+
       if (!args.create && field.const && args.obj[ name ]) {
         console.error('trying to modify constant field', this.getClass().TYPE_ID + '.' + name);
         continue;
