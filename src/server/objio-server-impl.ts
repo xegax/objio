@@ -311,7 +311,11 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, CreateObjectsArgs>('write', 'create-object', async (params) => {
     const { store } = await getPrj(params.get, args.factory, prjsDir);
-    params.done(await store.createObjects({...params.post, userId: params.userId}));
+    try {
+      params.done(await store.createObjects({...params.post, userId: params.userId}));
+    } catch (err) {
+      params.error(err);
+    }
   });
 
   srv.addJsonHandler<PrjData, WriteObjectsArgs>('write', 'write-objects', async (params) => {

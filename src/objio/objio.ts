@@ -86,7 +86,7 @@ class SavingQueue {
   }
 }
 
-export type ErrorType = 'invoke' | 'loadObject';
+export type ErrorType = 'invoke' | 'loadObject' | 'createObject';
 export interface ErrorArgs {
   type: ErrorType;
   error: any;
@@ -288,6 +288,15 @@ export class OBJIO {
         return Promise.all(Object.keys(res).map(id => objsMap[id].holder.onCreate()));
       })
       .then(() => null)
+      .catch(error => {
+        this.errorHandler && this.errorHandler({
+          type: 'createObject',
+          error,
+          args: { obj: OBJIOItem.getClass(obj).TYPE_ID }
+        });
+
+        return Promise.reject(error);
+      })
     );
   }
 
