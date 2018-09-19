@@ -48,7 +48,7 @@ interface OBJItemConstructor extends ObjectConstructor {
 }
 
 export interface WriteToObjectArgs {
-  create?: boolean;   //  writeToObject to initialize
+  checkConst?: boolean;   //  writeToObject to initialize
   userId: string;
   fieldFilter?: FieldFilter;
   obj: OBJIOItem;
@@ -101,6 +101,7 @@ export interface GetJsonArgs {
   fieldFilter?: FieldFilter;
   userId?: string;
   diff?: boolean;
+  skipConst?: boolean;
 }
 
 export interface UpdateSrvDataArgs {
@@ -233,6 +234,9 @@ export class OBJIOItemHolder extends Publisher {
       if (args.diff && this.srvJson[name] == newValue)
         return;
 
+      if (args.skipConst && fieldItem.const)
+        return;
+
       json[ name ] = newValue;
     });
 
@@ -288,7 +292,7 @@ export class OBJIOItem {
       const field = fields[ name ];
       const valueOrID = args.store[ name ];
 
-      if (!args.create && field.const && args.obj[ name ]) {
+      if (args.checkConst == true && field.const && args.obj[ name ]) {
         console.error('trying to modify constant field', this.getClass().TYPE_ID + '.' + name);
         continue;
       }

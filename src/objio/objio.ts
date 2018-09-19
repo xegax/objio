@@ -61,15 +61,18 @@ class SavingQueue {
     const queue = this.queue;
     this.queue = [];
 
-    console.log('saving', queue.length, 'objects');
     const arr = queue.map(item => {
       return {
         id: item.holder.getID(),
-        json: item.holder.getJSON({diff: true}),
+        json: item.holder.getJSON({diff: true, skipConst: true}),
         version: item.holder.getVersion()
       };
     }).filter(item => Object.keys(item.json).length != 0);
 
+    if (arr.length == 0)
+      return Promise.resolve();
+
+    console.log('saving', queue.length, 'objects');
     return (
       this.store.writeObjects({ arr })
       .then(objs => {
@@ -205,7 +208,15 @@ export class OBJIO {
     return (
       this.store.invokeMethod(invokeArgs)
       .catch(error => {
-        this.errorHandler && this.errorHandler({ type: 'invoke', error, obj, args: { method: name, args: args.args } });
+        if (!this.errorHandler)
+          return;
+
+        this.errorHandler({
+          type: 'invoke',
+          error,
+          obj,
+          args: { method: name, args: args.args }
+        });
       })
     );
   }

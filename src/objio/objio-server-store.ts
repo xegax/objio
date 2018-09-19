@@ -55,7 +55,6 @@ export class OBJIOServerStore implements OBJIOStore {
         return;
 
       const task = objClass.writeToObject({
-        create: true,
         userId: args.userId,
         obj,
         store,
@@ -93,10 +92,11 @@ export class OBJIOServerStore implements OBJIOStore {
     objs.forEach(obj => objsMap[obj.holder.getID()] = obj);
 
     let tasks = Array<Promise<any>>();
-    args.arr.forEach(item =>  {
+    args.arr.forEach(item => {
       const obj = objsMap[item.id];
       const objClass = OBJIOItem.getClass(obj);
       const task = objClass.writeToObject({
+        checkConst: true,
         userId: args.userId,
         fieldFilter: this.includeFilter,
         obj,
