@@ -1,0 +1,2 @@
+1. constant and not initialized fields can not be modified
+2. 

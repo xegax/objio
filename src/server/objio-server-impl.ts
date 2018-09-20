@@ -9,6 +9,10 @@ import {
 } from '../index';
 import { OBJIOFSLocalStore } from './objio-fs-store';
 import { existsSync, lstatSync } from 'fs';
+import { ServerInstance } from './server-instance';
+import { OBJIOItemClass } from '../objio/item';
+import { UserGroup } from './user-group';
+import { User, AccessType } from './user';
 
 interface Params<GET, POST, COOKIE> extends ParamsBase<GET, POST, COOKIE> {
   userId: string;
@@ -41,17 +45,10 @@ function msToMin(ms: number): number {
   return ms / 1000 / 60;
 }
 
-type AccessType = 'read' | 'write';
+let serverObj: ServerInstance;
 
 interface Cookies {
   sessId: string;
-}
-
-interface User {
-  id: string;
-  login: string;
-  password: string;
-  rights: Array<AccessType>;
 }
 
 interface Session {
@@ -59,20 +56,6 @@ interface Session {
   lastTime: Date;
   user: User;
 }
-
-const users: Array<User> = [
-  {
-    id: '0x12345ABCDEF',
-    login: 'guest',
-    password: '',
-    rights: ['read', 'write']
-  }, {
-    id: '0xFFEEABC000',
-    login: 'xega',
-    password: '',
-    rights: ['read', 'write']
-  }
-];
 
 class RestrictionPolicy {
   private srv: Server;
@@ -87,7 +70,11 @@ class RestrictionPolicy {
       if (sess)
         return params.done({error: 'Already logged in'});
 
-      const user = users.find(usr => usr.login == params.post.login && usr.password == params.post.passwd);
+      const user = serverObj.findUser({
+        login: params.post.login,
+        password: params.post.passwd
+      });
+
       if (!user)
         return params.done({error: `User "${params.post.login}" not found or password is incorrect`});
 
@@ -115,18 +102,21 @@ class RestrictionPolicy {
 
   addJsonHandler<GET, POST>( accessType: AccessType,
                                                url: string,
-                                               handler: Handler<GET, POST, Cookies>,
+                                               handler: Handler<PrjData, POST, Cookies>,
                                                addOnClose?: (handler: () => void) => void) {
-    this.srv.addJsonHandler(url, (params: Params<GET, POST, Cookies>, addOnClose) => {
+    this.srv.addJsonHandler(url, (params: Params<PrjData, POST, Cookies>, addOnClose) => {
       const sess = this.checkAndGetSession(params.cookie.sessId);
       if (!sess)
         return params.error('Authorization required', 401);
 
       sess.lastTime = new Date();
-      if (sess.user.rights.indexOf(accessType) == -1)
+      if (!serverObj.hasRight(sess.user, accessType))
         return params.error('Forbidden', 403);
 
-      const nextParams = { ...params, userId: sess.user.id };
+      if (params.get.prj == 'main' && !serverObj.isAdmin(sess.user))
+        return params.error('Access denied', 403);
+
+      const nextParams = { ...params, userId: sess.user.getUserId() };
       handler(nextParams, addOnClose);
     }, addOnClose);
   }
@@ -145,12 +135,12 @@ class RestrictionPolicy {
             return reject('Authorization required');
 
           sess.lastTime = new Date();
-          if (sess.user.rights.indexOf(accessType) == -1)
+          if (!serverObj.hasRight(sess.user, accessType))
             return reject('Forbidden');
 
-          let userId = sess.user.id;
+          const userId = sess.user.getUserId();
           handler({...params, userId}, resolve, reject);
-      }
+        }
     );
   }
 }
@@ -287,12 +277,32 @@ interface SendFileArgs extends PrjData {
 }
 
 export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateResult> {
+  const classes: Array<OBJIOItemClass> = [
+    ServerInstance,
+    User,
+    UserGroup
+  ];
+
+  classes.forEach(objClass => {
+    args.factory.registerItem(objClass);
+  });
+
   const prjsDir = getAndCheckPrjsDir(args.prjsDir);
 
   const srv = new RestrictionPolicy(createServer({
     port: args.port || 8088,
     baseUrl: args.baseUrl || '/handler/objio/'
   }));
+
+  let main: Project;
+  try {
+    main = await getPrj({ prj: 'main' }, args.factory, prjsDir);
+    serverObj = await main.store.getOBJIO().loadObject<ServerInstance>();
+  } catch (e) {
+    console.log(e);
+    serverObj = new ServerInstance();
+    await main.store.getOBJIO().createObject(serverObj);
+  }
 
   srv.addDataHandler<SendFileArgs>('write', 'send-file', (params, done, error) => {
     return getPrj(params.get, args.factory, prjsDir)
