@@ -1,6 +1,7 @@
 import { OBJIOFactory} from './factory';
 import { cloneDeep } from 'lodash';
-import { Tags, SERIALIZE, FieldFilter } from './item';
+import { SERIALIZE, FieldFilter } from './item';
+import { User } from '../client/user';
 
 export interface JSONObj {
   [key: string]: string | number;
@@ -42,6 +43,7 @@ export type InvokeMethodArgs = {
   id: string;
   methodName: string;
   userId: string;
+  user?: User;
   args: Object;
 };
 

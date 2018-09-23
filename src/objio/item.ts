@@ -1,5 +1,6 @@
 import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
+import { User, AccessType } from '../client/user';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
@@ -82,7 +83,7 @@ export interface OBJIOItemHolderOwner {
   getObject(id: string): Promise<OBJIOItem>;
   invoke(args: InvokeMethodArgs & {obj: OBJIOItem}): Promise<any>;
   context(): OBJIOContext;
-  getUserId(): string;
+  getUserById(userId: string): Promise<User>;
   isClient(): boolean;
 }
 
@@ -94,7 +95,10 @@ export interface InitArgs {
 }
 
 export interface MethodsToInvoke {
-  [method: string]: (args: Object, userId?: string) => any;
+  [method: string]: {
+    method: (args: Object, userId: string) => any,
+    rights: AccessType;
+  };
 }
 
 export interface GetJsonArgs {
@@ -159,12 +163,12 @@ export class OBJIOItemHolder extends Publisher {
     return this.eventHandler;
   }
 
-  getID(): string {
-    return this.id;
+  getUserById<T extends User = User>(userId: string): Promise<T> {
+    return this.owner.getUserById(userId) as Promise<T>;
   }
 
-  getUserId(): string {
-    return this.owner.getUserId();
+  getID(): string {
+    return this.id;
   }
 
   onLoaded(): Promise<any> {
@@ -254,7 +258,7 @@ export class OBJIOItemHolder extends Publisher {
     return ctx.path + f;
   }
 
-  getFilePath(file: string) {
+  getFilePath(file: string): string {
     return OBJIOItemHolder.getFilePath(this.owner.context(), file);
   }
 
@@ -262,11 +266,17 @@ export class OBJIOItemHolder extends Publisher {
     return this.srvVersion;
   }
 
-  invokeMethod(name: string, args: Object, userId?: string) {
+  invokeMethod(name: string, args: Object, userId?: string): Promise<any> {
     if (!this.owner)
       return Promise.reject('owner not defined');
 
-    return this.owner.invoke({id: this.id, obj: this.obj, methodName: name, args, userId});
+    return this.owner.invoke({
+      id: this.id,
+      obj: this.obj,
+      methodName: name,
+      args,
+      userId
+    });
   }
 }
 

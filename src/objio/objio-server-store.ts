@@ -194,11 +194,14 @@ export class OBJIOServerStore implements OBJIOStore {
         throw new Error(`object ${args.id} not found`);
 
       const methods = obj.holder.getMethodsToInvoke();
-      const method = methods[args.methodName];
-      if (!method)
+      const item = methods[args.methodName];
+      if (args.user && !args.user.hasRight(item.rights, []))
+        throw new Error(`Access denied to invoke ${args.methodName}`);
+
+      if (!item)
         throw new Error(`method ${args.methodName} not found`);
 
-      return method(args.args, args.userId);
+      return item.method(args.args, args.userId);
     });
   }
 

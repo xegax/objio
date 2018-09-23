@@ -14,6 +14,7 @@ import {
 } from './store';
 import { Requestor } from '../common/requestor';
 import { timer } from '../common/promise';
+import { User } from '../client/user';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -109,6 +110,7 @@ export interface OBJIOArgs {
   saveTime?: number;
   context?: OBJIOContext;
   server?: boolean;
+  getUserById?: (userId: string) => Promise<User>;
 }
 
 export class OBJIO {
@@ -122,6 +124,7 @@ export class OBJIO {
   };
   private errorHandler: ErrorHandler;
   private server: boolean = false;
+  private getUserByIdImpl: (userId: string) => Promise<User>;
 
   static create(args: OBJIOArgs): Promise<OBJIO> {
     let obj = new OBJIO();
@@ -130,6 +133,7 @@ export class OBJIO {
     obj.savingQueue = new SavingQueue(args.saveTime || 100, args.store, obj);
     obj.context = {...obj.context, ...(args.context || {})};
     obj.server = args.server == true;
+    obj.getUserByIdImpl = args.getUserById;
 
     return Promise.resolve(obj);
   }
@@ -168,7 +172,7 @@ export class OBJIO {
         invoke: args => this.invokeMethod(args),
         context: () => this.context,
         getObject: id => this.loadObject(id),
-        getUserId: () => this.getUserId(),
+        getUserById: (userId: string) => this.getUserById(userId),
         isClient: () => this.isClient()
       }
     });
@@ -179,16 +183,19 @@ export class OBJIO {
     return this.savingQueue.addToSave(obj);
   }
 
+  getUserById(userId: string): Promise<User> {
+    if (!this.getUserByIdImpl)
+      return Promise.reject('getUserById not defined');
+
+    return Promise.resolve(this.getUserByIdImpl(userId));
+  }
+
   isClient(): boolean {
     return !this.server;
   }
 
   getContext(): OBJIOContext {
     return this.context;
-  }
-
-  getUserId() {
-    return '';
   }
 
   getFactory(): OBJIOFactory {
@@ -346,6 +353,7 @@ export class OBJIO {
         return newObj;
       }).catch(error => {
         this.errorHandler && this.errorHandler({ type: 'loadObject', error, args: { id } });
+        return Promise.reject(error);
       });
     };
 
@@ -362,7 +370,7 @@ export class OBJIO {
       }).then(() => resObj)
       .catch(error => {
         this.errorHandler && this.errorHandler({ type: 'loadObject', error, args: { id } });
-        return resObj;
+        return Promise.reject(error);
       })
     );
   }

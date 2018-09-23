@@ -1,6 +1,6 @@
 import { Requestor, RequestArgs } from '../common/requestor';
 
-export type LoginFormCallback = (error?: string) => Promise<{login: string; pass: string}>;
+export type LoginFormCallback = (error?: string) => Promise<{ login: string; pass: string }>;
 
 export interface AuthRequestorArgs {
   req: Requestor;
@@ -33,7 +33,7 @@ export class AuthRequestor implements Requestor {
         if (err.status != 401)
           return reject(err);
 
-        this.requests.push({request, resolve, reject});
+        this.requests.push({ request, resolve, reject });
         if (this.requests.length == 1)
           this.tryToAuthorize();
       });
@@ -46,30 +46,35 @@ export class AuthRequestor implements Requestor {
       .catch(this.tryToAuthorize);
   }
 
-  authorized = async () => {
-    while (this.requests.length) {
-      const req = this.requests[0];
-      try {
-        const data = await req.request();
+  authorized = () => {
+    if (this.requests.length == 0)
+      return Promise.resolve();
+
+    const req = this.requests[0];
+    return (
+      req.request()
+      .then(data => {
         this.requests.splice(0, 1);
         req.resolve(data);
-      } catch (err) {
-        if (err.status != 401) {
+        return this.authorized();
+      })
+      .catch(err => {
+        if ([401, 403].indexOf(err.status) != -1) {
           req.reject(err.responseText);
         } else {
           this.tryToAuthorize();
         }
-      }
-    }
+      })
+    );
   }
 
   private login(login: string, passwd: string) {
     return this.req.getJSON({
       url: this.loginUrl,
-      postData: {login, passwd}
-    }).then((res: {error: string, sessId: string}) => {
+      postData: { login, passwd }
+    }).then((res: { error: string, sessId: string }) => {
       if (!res.error) {
-        this.req.setCookie({sessId: res.sessId});
+        this.req.setCookie({ sessId: res.sessId });
         return {};
       }
 

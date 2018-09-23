@@ -37,7 +37,7 @@ export class ServerInstance extends Base<User, UserGroup> {
   addUserGroup(group: UserGroup): Promise<void> {
     if (this.findGroup( { name: group.getName() }))
       return Promise.reject(`Group "${group.getName()}" already exists`);
-    
+
     return (
       this.holder.createObject(group)
       .then(() => {
@@ -61,7 +61,7 @@ export class ServerInstance extends Base<User, UserGroup> {
 
     if (!user.getGroups().every(name => this.findGroup({ name }) != null))
       return Promise.reject(`Undefined user group`);
-    
+
     return (
       this.holder.createObject(user)
       .then(() => {
@@ -74,15 +74,18 @@ export class ServerInstance extends Base<User, UserGroup> {
     return this.getUserGroups().find(group => group.getName() == args.name);
   }
 
-  findUser(args: { login: string; password?: string }): User {
+  findUser(args: Partial<{ login: string; password: string; userId: string }>): User {
     const pred = (user: User) => {
-      if (user.login != args.login)
+      if (args.login && args.login != user.login)
         return false;
 
-      if (!('password' in args))
-        return true;
+      if (args.userId && args.userId != user.getUserId())
+        return false;
 
-      return user.getPassword() == args.password;
+      if ('password' in args && args.password != user.getPassword())
+        return false;
+
+      return true;
     };
     return this.users.get( this.users.find( pred ) );
   }

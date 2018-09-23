@@ -16,6 +16,7 @@ import { User, AccessType } from './user';
 
 interface Params<GET, POST, COOKIE> extends ParamsBase<GET, POST, COOKIE> {
   userId: string;
+  user: User;
 }
 
 type Handler<GET, POST, COOKIE> = (
@@ -116,7 +117,12 @@ class RestrictionPolicy {
       if (params.get.prj == 'main' && !serverObj.isAdmin(sess.user))
         return params.error('Access denied', 403);
 
-      const nextParams = { ...params, userId: sess.user.getUserId() };
+      const nextParams = {
+        ...params,
+        userId: sess.user.getUserId(),
+        user: sess.user
+      };
+
       handler(nextParams, addOnClose);
     }, addOnClose);
   }
@@ -228,7 +234,8 @@ async function getPrj(data: PrjData, factory: OBJIOFactory, rootDir: string): Pr
           return !field.tags || !field.tags.length || field.tags.indexOf('sr') == -1;
         },
         context: { path: path + '/' },
-        saveTime: 10
+        saveTime: 10,
+        getUserById: userId => Promise.resolve(serverObj.findUser({ userId }))
       }),
       watcher: new ObjWatcher()
     };
@@ -313,13 +320,13 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
       const methods = obj.holder.getMethodsToInvoke();
       if ('send-file' in methods)
-        methods['send-file']({ ...params.get, data: params.stream }, params.userId).then(() => done({}));
+        methods['send-file'].method({ ...params.get, data: params.stream }, params.userId).then(() => done({}));
       else
         error(`method send-file of this object type = "${OBJIOItem.getClass(obj).TYPE_ID}" not found!`);
     });
   });
 
-  srv.addJsonHandler<PrjData, CreateObjectsArgs>('write', 'create-object', async (params) => {
+  srv.addJsonHandler<PrjData, CreateObjectsArgs>('create', 'create-object', async (params) => {
     const { store } = await getPrj(params.get, args.factory, prjsDir);
     try {
       params.done(await store.createObjects({...params.post, userId: params.userId}));
@@ -358,11 +365,13 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     }
   });
 
-  srv.addJsonHandler<PrjData, {id: string, method: string, args: Object}>('write', 'invoke-method', async (params) => {
+  srv.addJsonHandler<PrjData, {id: string, method: string, args: Object}>('read', 'invoke-method', async (params) => {
     try {
       const { store } = await getPrj(params.get, args.factory, prjsDir);
+
       params.done(await store.invokeMethod({
         userId: params.userId,
+        user: params.user,
         id: params.post.id,
         methodName: params.post.method,
         args: params.post.args
