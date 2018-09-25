@@ -7,6 +7,14 @@ export class ServerInstance<TUser extends User = User, TGroup extends UserGroup 
   protected users = new OBJIOArray<TUser>();
   protected groups = new OBJIOArray<TGroup>();
 
+  getUsers(): Array<TUser> {
+    return this.users.getArray();
+  }
+
+  getGroups(): Array<TGroup> {
+    return this.groups.getArray();
+  }
+
   static TYPE_ID = 'ServerInstance';
   static SERIALIZE: SERIALIZER = () => ({
     users:  { type: 'object', const: true },

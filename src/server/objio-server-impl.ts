@@ -112,7 +112,7 @@ class RestrictionPolicy {
 
       sess.lastTime = new Date();
       if (!serverObj.hasRight(sess.user, accessType))
-        return params.error('Forbidden', 403);
+        return params.error(`Forbidden, you do not have right to ${accessType}`, 403);
 
       if (params.get.prj == 'main' && !serverObj.isAdmin(sess.user))
         return params.error('Access denied', 403);

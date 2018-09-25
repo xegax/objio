@@ -26,6 +26,13 @@ export class User extends Base {
       this.rights = args.rights.slice();
       this.group = args.groups.slice();
     }
+
+    this.holder.addEventHandler({
+      onLoad: () => {
+        this.holder.save();
+        return Promise.resolve();
+      }
+    });
   }
 
   getPassword(): string {
