@@ -13,7 +13,7 @@ import {
   CreateObjectsArgs
 } from './store';
 import { Requestor } from '../common/requestor';
-import { timer } from '../common/promise';
+import { ExtPromise } from '../common/ext-promise';
 import { User } from '../client/user';
 
 export interface WatchResult {
@@ -51,11 +51,14 @@ class SavingQueue {
     if (this.savePromise)
       return this.savePromise;
 
-    return this.savePromise = timer(this.timeToSave).then(() => {
-      return this.saveImpl().then(() => {
-        this.savePromise = null;
-      });
-    });
+    return (
+      this.savePromise = ExtPromise().timer(this.timeToSave)
+      .then(() => {
+        return this.saveImpl().then(() => {
+          this.savePromise = null;
+        });
+      })
+    );
   }
 
   saveImpl(): Promise<any> {
@@ -491,7 +494,7 @@ export class OBJIO {
           if (tryCounter <= 0)
             return;
 
-          return timer(1000).then(() => update(tryCounter - 1));
+          return ExtPromise().timer(1000).then(() => update(tryCounter - 1));
         })
       );
     };

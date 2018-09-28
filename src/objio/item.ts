@@ -69,7 +69,7 @@ export interface OBJIOItemClass {
   saveStore?(obj: OBJIOItem): SaveStoreResult;
   getRelObjIDS?(store: Object, replaceID?: (id: string) => string): GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
-  invokeMethod?(obj: OBJIOItem, name: string, args: Object): Promise<any>;
+  invokeMethod?(obj: OBJIOItem, args: InvokeArgs): Promise<any>;
   create?(args?: any): OBJIOItem;
 }
 
@@ -99,6 +99,13 @@ export interface MethodsToInvoke {
     method: (args: Object, userId: string) => any,
     rights: AccessType;
   };
+}
+
+export interface InvokeArgs {
+  method: string;
+  args: Object;
+  userId?: string;
+  onProgress?(value: number): void;
 }
 
 export interface GetJsonArgs {
@@ -266,16 +273,17 @@ export class OBJIOItemHolder extends Publisher {
     return this.srvVersion;
   }
 
-  invokeMethod(name: string, args: Object, userId?: string): Promise<any> {
+  invokeMethod(args: InvokeArgs): Promise<any> {
     if (!this.owner)
       return Promise.reject('owner not defined');
 
     return this.owner.invoke({
       id: this.id,
       obj: this.obj,
-      methodName: name,
-      args,
-      userId
+      methodName: args.method,
+      args: args.args,
+      userId: args.userId,
+      onProgress: args.onProgress
     });
   }
 }
@@ -392,7 +400,7 @@ export class OBJIOItem {
     return obj.constructor as any as OBJIOItemClass;
   }
 
-  static invokeMethod(obj: OBJIOItem, name: string, args: Object, userId?: string): Promise<any> {
-    return obj.holder.invokeMethod(name, args, userId);
+  static invokeMethod(obj: OBJIOItem, args: InvokeArgs): Promise<any> {
+    return obj.holder.invokeMethod(args);
   }
 }

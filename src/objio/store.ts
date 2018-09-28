@@ -45,6 +45,7 @@ export type InvokeMethodArgs = {
   userId: string;
   user?: User;
   args: Object;
+  onProgress?(value: number): void;
 };
 
 export interface OBJIOStore {

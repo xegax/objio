@@ -7,6 +7,8 @@ export interface RequestArgs {
   params?: Object;
   postData?: Object | string;
   encryptor?: Encryptor;
+
+  onProgress?(value: number): void;
 }
 
 export interface Requestor {
@@ -91,18 +93,24 @@ class RequestorImpl implements Requestor {
   }
 
   getData(args: RequestArgs): Promise<string> {
-    const url = makeUrl(args.url, args.params);
+    let url = makeUrl(args.url, args.params);
+
     let postData = args.postData;
-    if (postData != null && typeof postData != 'string' && !(postData instanceof File))
+    if (postData != null && postData.constructor == Object)
       postData = JSON.stringify(postData);
 
     const headers: Object = {};
     if (env.isNode())
       headers['Cookie'] = Object.keys(this.cookie).map(key => [key, this.cookie[key]].join('=')).join('; ');
 
-    if (postData)
+    if (postData) {
       return (
-        axios.default.post<string>(url, postData, { headers })
+        axios.default.post<string>(url, postData, {
+          headers,
+          onUploadProgress: (evt: ProgressEvent) => {
+            args.onProgress && args.onProgress(evt.loaded / evt.total);
+          }
+        })
         .then((res: axios.AxiosResponse<string>) => {
           return (typeof res.data == 'string') ? res.data : JSON.stringify(res.data);
         })
@@ -110,6 +118,7 @@ class RequestorImpl implements Requestor {
           throw res.response;
         })
       );
+    }
 
     return (
       axios.default.get<string>(url, { headers })

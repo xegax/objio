@@ -1,7 +1,41 @@
 import * as http from 'http';
 import * as url from 'url';
 import {Encryptor, EmptyEncryptor} from '../common/encryptor';
-import { createWriteStream } from 'fs';
+import { Transform, TransformOptions, Readable } from 'stream';
+
+class FormDataStream extends Transform {
+  private readSize: number = 0;
+  private contentSize: number = 0;
+  private fileSize: number = 0;
+
+  constructor(opts: TransformOptions & { contentSize: number }) {
+    super(opts);
+    this.readSize = 0;
+    this.contentSize = opts.contentSize;
+  }
+
+  _transform(chunk: Buffer, env, cb: () => void) {
+    if (this.readSize == 0) {
+      let n = 0;
+      let arr = new Array<string>();
+      while (arr.length <= 3) {
+        let next = chunk.indexOf('\x0D\x0A', n);
+        arr.push(chunk.slice(n, next).toString());
+        n = next + 2;
+      }
+      chunk = chunk.slice(n);
+      this.fileSize = this.contentSize - n - (arr[0].length + 6);
+      console.log('file size', this.fileSize);
+    }
+
+    this.readSize += chunk.length;
+    if (this.readSize > this.fileSize)
+      chunk = chunk.slice(0, chunk.length - (this.readSize - this.fileSize));
+
+    this.push(chunk);
+    cb();
+  }
+}
 
 export interface Params<GET, POST, COOKIE> {
   get: GET;
@@ -18,7 +52,7 @@ export type Handler<GET, POST, COOKIE> = (
 
 export interface DataParams<GET, COOKIE> {
   get: GET;
-  stream: http.IncomingMessage;
+  stream: Readable;
   cookie: COOKIE;
 }
 
@@ -163,9 +197,14 @@ export class ServerImpl implements Server  {
           postData += data.toString();
         });
       else {
+        let stream: Readable = request;
+        if ((request.headers['content-type'] || '').startsWith('multipart/form-data')) {
+          stream = request.pipe(new FormDataStream({ contentSize: +request.headers['content-length']}));
+        }
+
         dataHandler({
             get: params,
-            stream: request,
+            stream,
             cookie
           },
           writeOK,
