@@ -10,11 +10,9 @@ import {
 import {
   writeFileSync,
   readFileSync,
-  unlink,
   existsSync,
   unlinkSync
 } from 'fs';
-import { promisify } from 'util';
 
 export class OBJIOFSLocalStore extends OBJIOLocalStore {
   private rootDir: string;

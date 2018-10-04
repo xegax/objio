@@ -123,7 +123,8 @@ export class OBJIO {
   private savingQueue: SavingQueue;
   private observers: Array<Observer> = Array<Observer>();
   private context: OBJIOContext = {
-    path: ''
+    filesPath: '',
+    objectsPath: ''
   };
   private errorHandler: ErrorHandler;
   private server: boolean = false;

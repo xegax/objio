@@ -74,7 +74,8 @@ export interface OBJIOItemClass {
 }
 
 export interface OBJIOContext {
-  path: string;
+  objectsPath: string;    // path to private data
+  filesPath: string;      // path to public data
 }
 
 export interface OBJIOItemHolderOwner {
@@ -261,12 +262,20 @@ export class OBJIOItemHolder extends Publisher {
     this.srvVersion = args.version;
   }
 
-  static getFilePath(ctx: OBJIOContext, f: string): string {
-    return ctx.path + f;
+  static getPublicPath(ctx: OBJIOContext, f: string): string {
+    return ctx.filesPath + f;
   }
 
-  getFilePath(file: string): string {
-    return OBJIOItemHolder.getFilePath(this.owner.context(), file);
+  static getPrivatePath(ctx: OBJIOContext, f: string): string {
+    return ctx.objectsPath + f;
+  }
+
+  getPublicPath(file: string): string {
+    return OBJIOItemHolder.getPublicPath(this.owner.context(), file);
+  }
+
+  getPrivatePath(file: string): string {
+    return OBJIOItemHolder.getPrivatePath(this.owner.context(), file);
   }
 
   getVersion(): string {
