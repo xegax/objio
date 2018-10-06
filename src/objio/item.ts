@@ -123,7 +123,7 @@ export interface UpdateSrvDataArgs {
 
 export interface OBJIOEventHandler {
   onLoad(): Promise<any>;
-  onCreate(): Promise<any>;
+  onCreate(userId?: string): Promise<any>;
   onObjChange(): void;
   onDelete(): Promise<any>;
 }
@@ -183,8 +183,8 @@ export class OBJIOItemHolder extends Publisher {
     return Promise.all(this.eventHandler.filter(item => item.onLoad).map(handler => handler.onLoad()));
   }
 
-  onCreate(): Promise<any> {
-    return Promise.all(this.eventHandler.filter(item => item.onCreate).map(handler => handler.onCreate()));
+  onCreate(userId?: string): Promise<any> {
+    return Promise.all(this.eventHandler.filter(item => item.onCreate).map(handler => handler.onCreate(userId)));
   }
 
   onDelete(): Promise<any> {

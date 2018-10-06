@@ -307,7 +307,7 @@ export class OBJIO {
           this.initNewObject(obj, item.newId, item.version);
         });
 
-        return Promise.all(Object.keys(res).map(id => objsMap[id].holder.onCreate()));
+        return Promise.all(Object.keys(res).map(id => objsMap[id].holder.onCreate(userId)));
       })
       .then(() => null)
       .catch(error => {

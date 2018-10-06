@@ -338,22 +338,32 @@ export class OBJIOLocalStore implements OBJIOStore {
       if (fields[name].type != 'object')
         return;
 
-      const nextId: string = objStore.data[name] + '';
-      if (nextId)
-        this.readObjectResult({ ...args, id: nextId }, res, deep);
+      const nextId: string = objStore.data[name] as string;
+      if (!nextId)
+        return;
+
+      this.readObjectResult({ ...args, id: nextId }, res, deep);
     });
   }
 
   readObjects(args: ReadObjectArgs): Promise<ReadResult> {
     const res: ReadResult = {};
-    this.readObjectResult(args, res, true);
+    try {
+      this.readObjectResult(args, res, true);
+    } catch (e) {
+      return Promise.reject(e);
+    }
 
     return Promise.resolve(res);
   }
 
   readObject(args: ReadObjectArgs): Promise<ReadResult> {
     const res: ReadResult = {};
-    this.readObjectResult(args, res, false);
+    try {
+      this.readObjectResult(args, res, false);
+    } catch (e) {
+      return Promise.reject(e);
+    }
 
     return Promise.resolve(res);
   }

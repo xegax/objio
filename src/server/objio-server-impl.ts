@@ -8,11 +8,12 @@ import {
   Field
 } from '../index';
 import { OBJIOFSLocalStore } from './objio-fs-store';
-import { existsSync, lstatSync } from 'fs';
+import { existsSync, lstatSync, mkdirSync } from 'fs';
 import { ServerInstance } from './server-instance';
 import { OBJIOItemClass } from '../objio/item';
 import { UserGroup } from './user-group';
 import { User, AccessType } from './user';
+import { Project } from './project';
 
 const PRIVATE_PATH = 'private';
 const PUBLIC_PATH = 'public';
@@ -30,6 +31,7 @@ type Handler<GET, POST, COOKIE> = (
 interface DataParams<GET, COOKIE> extends DataParamsBase<GET, COOKIE> {
   get: GET;
   userId: string;
+  user: User;
 }
 
 type DataHandler<GET, COOKIE> = (
@@ -160,6 +162,7 @@ interface ObjWatcherItem {
 }
 
 interface DefferredItem {
+  user: User;
   version: number;
   handler: () => void;
 }
@@ -204,9 +207,10 @@ class ObjWatcher {
   }
 }
 
-interface Project {
+interface ProjectStore {
   store: OBJIOServerStore;
   watcher: ObjWatcher;
+  prj: Project;
 }
 
 interface PrjData {
@@ -229,12 +233,13 @@ interface SendFileArgs extends PrjData {
   name: string;
   size: number;
   mime: string;
+  user: User;
 }
 
 class ProjectManager {
   private rootDir: string;
   private projectsDir: string = 'projects';
-  private projectMap: {[id: string]: Project | Promise<Project>} = {};
+  private projectMap: {[id: string]: ProjectStore | Promise<ProjectStore>} = {};
   private factory: OBJIOFactory;
 
   constructor(rootDir: string, factory: OBJIOFactory) {
@@ -254,9 +259,25 @@ class ProjectManager {
     return [ this.rootDir, this.projectsDir, project, PUBLIC_PATH ].join('/');
   }
 
-  getProject(projectId?: string): Promise<Project> {
-    projectId = projectId || 'main';
-    const project = this.projectMap[projectId] as Project;
+  createProject(args: { user?: User, projectId?: string }): Promise<ProjectStore> {
+    const { projectId } = args;
+    const prjPath = this.getProjectPath(projectId);
+    if (existsSync(prjPath))
+      throw 'project already exists';
+
+    mkdirSync( prjPath );
+    mkdirSync( this.getFilePath(projectId) );
+    mkdirSync( this.getObjectsPath(projectId) );
+    return this.getProject(args);
+  }
+
+  createNewProject(): Project {
+    return new Project();
+  }
+
+  getProject(args: { user?: User, projectId?: string }): Promise<ProjectStore> {
+    const projectId = args.projectId || 'main';
+    const project = this.projectMap[projectId] as ProjectStore;
     if (project) {
       if (project instanceof Promise)
         return project;
@@ -266,7 +287,7 @@ class ProjectManager {
 
     const projectPath = this.getProjectPath(projectId);
     if (!existsSync(projectPath))
-      throw `project ${projectId} does't exists`;
+      return Promise.reject(`project ${projectId} does't exists`);
 
     return (
       this.projectMap[projectId] = OBJIOServerStore.create({
@@ -283,6 +304,22 @@ class ProjectManager {
           getUserById: userId => Promise.resolve(serverObj.findUser({ userId }))
       })
       .then(store => {
+        const objio = store.getOBJIO();
+        return Promise.all([
+          objio.loadObject<Project>()
+          .catch(() => {
+            let prj = this.createNewProject();
+            return (
+              objio.createObject(prj, args.user.getUserId())
+              .then(() => prj)
+            );
+          }),
+          store
+        ]);
+      })
+      .then(res => {
+        const [prj, store] = res;
+
         const watcher = new ObjWatcher();
         store.getOBJIO().addObserver({
           onSave: (objs: Array<OBJIOItem>) => {
@@ -294,6 +331,7 @@ class ProjectManager {
         });
 
         return this.projectMap[projectId] = {
+          prj,
           store,
           watcher
         };
@@ -306,7 +344,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   const classes: Array<OBJIOItemClass> = [
     ServerInstance,
     User,
-    UserGroup
+    UserGroup,
+    Project
   ];
 
   classes.forEach(objClass => {
@@ -320,9 +359,9 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     baseUrl: args.baseUrl || '/handler/objio/'
   }));
 
-  let main: Project;
+  let main: ProjectStore;
   try {
-    main = await manager.getProject('main');
+    main = await manager.getProject({ projectId: 'main' });
     serverObj = await main.store.getOBJIO().loadObject<ServerInstance>();
   } catch (e) {
     console.log(e);
@@ -332,7 +371,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addDataHandler<SendFileArgs>('write', 'send-file', (params, done, error) => {
     return (
-      manager.getProject(params.get.prj)
+      manager.getProject({ projectId: params.get.prj, user: params.user })
       .then(prj => {
         const obj = prj.store.getOBJIO().getObject(params.get.id);
         if (!obj)
@@ -348,7 +387,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   });
 
   srv.addJsonHandler<PrjData, CreateObjectsArgs>('create', 'create-object', async (params) => {
-    const { store } = await manager.getProject(params.get.prj);
+    const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
     try {
       params.done(await store.createObjects({...params.post, userId: params.userId}));
     } catch (err) {
@@ -357,7 +396,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   });
 
   srv.addJsonHandler<PrjData, WriteObjectsArgs>('write', 'write-objects', async (params) => {
-    const { store } = await manager.getProject(params.get.prj);
+    const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
     const res = await store.writeObjects({...params.post, userId: params.userId});
 
     const removed = res.removed;
@@ -370,7 +409,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, {id: string}>('read', 'read-object', async (params) => {
     try {
-      const { store } = await manager.getProject(params.get.prj);
+      const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
       params.done(await store.readObject({id: params.post.id, userId: params.userId}));
     } catch (e) {
       params.error(e.toString());
@@ -379,7 +418,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, {id: string}>('read', 'read-objects', async (params) => {
     try {
-      const { store } = await manager.getProject(params.get.prj);
+      const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
       params.done(await store.readObjects({id: params.post.id, userId: params.userId}));
     } catch (e) {
       params.error(e.toString());
@@ -388,7 +427,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, {id: string, method: string, args: Object}>('read', 'invoke-method', async (params) => {
     try {
-      const { store } = await manager.getProject(params.get.prj);
+      const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
       params.done(await store.invokeMethod({
         userId: params.userId,
@@ -402,33 +441,46 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     }
   });
 
+  srv.addJsonHandler<PrjData, CreateObjectsArgs>('create', 'create-project', (params) => {
+    manager.createProject({ projectId: params.get.prj, user: params.user })
+    .then(() => {
+      params.done({});
+    })
+    .catch(e => {
+      params.error(e);
+    });
+  });
+
   srv.addJsonHandler<PrjData, {version: number}>('read', 'watcher/version', async (params, addOnClose) => {
-    const { watcher } = await manager.getProject(params.get.prj);
+    const { watcher, prj } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
     const version = watcher.getVersion();
     if (+params.post.version != version) {
       params.done({version});
     } else {
       const item = {
+        user: params.user,
         version: +params.post.version,
         handler: () => params.done({version: watcher.getVersion()})
       };
       deferredHandler.push(item);
 
       addOnClose(() => {
+        prj.removeWatchingUser(params.user);
         deferredHandler.splice(deferredHandler.indexOf(item), 1);
       });
     }
+    prj.addWatchingUser(params.user);
   });
 
   srv.addJsonHandler<PrjData, {}>('read', 'watcher/items', async (params) => {
-    const { watcher } = await manager.getProject(params.get.prj);
+    const { watcher } = await manager.getProject({ projectId: params.get.prj, user: params.user });
     params.done(watcher.getObjects());
   });
 
   srv.addJsonHandler<PrjData, {}>('write', 'clean', (params) => {
     console.log('clean process started');
-    manager.getProject(params.get.prj)
+    manager.getProject({ projectId: params.get.prj, user: params.user })
     .then(res => {
       return res.store.clean();
     })
