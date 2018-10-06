@@ -128,6 +128,7 @@ class RestrictionPolicy {
         user: sess.user
       };
 
+      sess.user.onRequest(accessType);
       handler(nextParams, addOnClose);
     }, addOnClose);
   }
@@ -149,6 +150,7 @@ class RestrictionPolicy {
           if (!serverObj.hasRight(sess.user, accessType))
             return reject('Forbidden');
 
+          sess.user.onRequest(accessType);
           const userId = sess.user.getUserId();
           handler({...params, userId}, resolve, reject);
         }
@@ -466,11 +468,13 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
       deferredHandler.push(item);
 
       addOnClose(() => {
-        prj.removeWatchingUser(params.user);
+        params.user.onWatchEnd();
+        prj.onWatchingEnd(params.user);
         deferredHandler.splice(deferredHandler.indexOf(item), 1);
       });
     }
-    prj.addWatchingUser(params.user);
+    params.user.onWatchStart();
+    prj.onWatchingStart(params.user);
   });
 
   srv.addJsonHandler<PrjData, {}>('read', 'watcher/items', async (params) => {

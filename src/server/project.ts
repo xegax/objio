@@ -4,8 +4,23 @@ import { User } from './user';
 import { Timer } from '../common/timer';
 
 export class Project<T extends OBJIOItem = OBJIOItem> extends Base {
-  private watchingUserIds: { [userId: string]: User } = {};
-  private saveTimer = new Timer(() => this.holder.save());
+  private watchingUserIds: { [userId: string]: { user: User } } = {};
+  private saveTimer = new Timer(() => {
+    this.watchingUsers = [];
+    const time = Date.now();
+    Object.keys(this.watchingUserIds).forEach(userId => {
+      const item = this.watchingUserIds[userId];
+      const stat = item.user.getStatistics();
+
+      if (item.user.isWatching() || time - stat.watchingStartTime < 10000)
+        this.watchingUsers.push(item.user.login);
+      else
+        delete this.watchingUserIds[userId];
+    });
+
+    console.log(this.watchingUsers);
+    this.holder.save();
+  });
 
   constructor() {
     super();
@@ -16,30 +31,28 @@ export class Project<T extends OBJIOItem = OBJIOItem> extends Base {
         rights: 'read'
       }
     });
+
+    this.holder.addEventHandler({
+      onLoad: () => {
+        this.watchingUserIds = {};
+        this.watchingUsers = [];
+        return Promise.resolve();
+      }
+    });
   }
 
   getUserDesc = () => {
     return Promise.resolve(null);
   }
 
-  addWatchingUser(user: User): void {
+  onWatchingStart(user: User) {
     const userId = user.getUserId();
-    if (this.watchingUserIds[ userId ])
-      return;
-
-    this.watchingUserIds[userId] = user;
-    this.watchingUsers.push(user.login);
-    this.saveTimer.run(2000);
+    this.watchingUserIds[userId] = { user };
+    this.saveTimer.run(1000);
   }
 
-  removeWatchingUser(user: User): void {
-    const userId = user.getUserId();
-    if (!this.watchingUserIds[ userId ])
-      return;
-
-    delete this.watchingUserIds[userId];
-    this.watchingUsers.splice( this.watchingUsers.indexOf(user.login), 1 );
-    this.saveTimer.run(2000);
+  onWatchingEnd(user: User): void {
+    this.saveTimer.run(10000);
   }
 
   static SERIALIZE: SERIALIZER = () => ({
