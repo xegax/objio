@@ -119,13 +119,19 @@ export class LineReader {
       if (!(task instanceof Promise))
         task = Promise.resolve();
 
-      return task.then(() => {
-        if (stop)
-          return;
+      return (
+        task.then(() => {
+          if (stop)
+            return;
 
-        if (bunch.lines.length >= args.linesPerBunch)
-          return nextBunch();
-      });
+          if (bunch.lines.length >= args.linesPerBunch)
+            return nextBunch();
+        })
+        .catch(err => {
+          console.log(err);
+          stop = true;
+        })
+      );
     };
 
     let parseNext: (
