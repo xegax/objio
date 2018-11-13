@@ -1,6 +1,7 @@
 import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
 import { User, AccessType } from '../client/user';
+import { ExtPromise, Cancelable } from '../common/ext-promise';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
@@ -127,6 +128,10 @@ export interface OBJIOEventHandler {
   onObjChange(): void;
   onDelete(): Promise<any>;
 }
+
+export const EventType = {
+  invokesInProgress: 'invokesInProgress'
+};
 
 export class OBJIOItemHolder extends Publisher {
   private id: string;
@@ -282,18 +287,47 @@ export class OBJIOItemHolder extends Publisher {
     return this.srvVersion;
   }
 
-  invokeMethod(args: InvokeArgs): Promise<any> {
-    if (!this.owner)
-      return Promise.reject('owner not defined');
+  protected invokesInProgress: number = 0;
 
-    return this.owner.invoke({
+  protected addInvokesCounter(add: number) {
+    this.invokesInProgress = Math.max(0, this.invokesInProgress + add);
+    this.delayedNotify({ type: EventType.invokesInProgress });
+  }
+
+  getInvokesInProgress(): number {
+    return this.invokesInProgress;
+  }
+
+  invokeMethod<T = any>(args: InvokeArgs): Cancelable<T> {
+    if (!this.owner)
+      return Promise.reject('owner not defined') as Cancelable<T>;
+
+    const p = this.owner.invoke({
       id: this.id,
       obj: this.obj,
       methodName: args.method,
       args: args.args,
       userId: args.userId,
       onProgress: args.onProgress
+    })
+    .then(res => {
+      this.addInvokesCounter(-1);
+      return res;
+    })
+    .catch(err => {
+      this.addInvokesCounter(-1);
+      return Promise.reject(err);
     });
+
+    this.addInvokesCounter(1);
+
+    return (
+      ExtPromise()
+      .cancelable(p)
+      .onCancel(() => {
+        this.addInvokesCounter(-1);
+      })
+    );
   }
 }
 
@@ -409,7 +443,7 @@ export class OBJIOItem {
     return obj.constructor as any as OBJIOItemClass;
   }
 
-  static invokeMethod(obj: OBJIOItem, args: InvokeArgs): Promise<any> {
+  static invokeMethod<T>(obj: OBJIOItem, args: InvokeArgs): Cancelable<T> {
     return obj.holder.invokeMethod(args);
   }
 }

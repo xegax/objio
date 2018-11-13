@@ -457,7 +457,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     const { watcher, prj } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
     const version = watcher.getVersion();
-    if (+params.post.version != version) {
+    if (+(params.post || { version: -1 }).version != version) {
       params.done({version});
     } else {
       const item = {

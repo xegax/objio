@@ -26,10 +26,14 @@ function timer(ms: number): Promise<void> {
   });
 }
 
-export type Cancelable<T = any> = Promise<T> & { cancel: () => void };
+export type Cancelable<T = any> = Promise<T> & {
+  cancel: () => void,
+  onCancel: (cb: () => void) => Cancelable<T>;
+};
 
 function cancelable<T>(p: Promise<T>): Cancelable<T> {
   let cancel = false;
+  const onCancel = Array<() => void>();
   const promise = new Promise((resolve, reject) => {
     p.then(data => {
       if (!cancel)
@@ -43,7 +47,25 @@ function cancelable<T>(p: Promise<T>): Cancelable<T> {
   }) as Cancelable<T>;
 
   promise.cancel = () => {
+    if (cancel)
+      return;
+
     cancel = true;
+    onCancel.forEach(cb => {
+      try {
+        cb();
+      } catch(e) {
+        console.log(e);
+      }
+    });
+  };
+
+  promise.onCancel = (cb: () => void) => {
+    if (onCancel.indexOf(cb) != -1)
+      return;
+
+    onCancel.push(cb);
+    return promise;
   };
 
   return promise;
