@@ -1,7 +1,7 @@
 import { Project as Base } from '../client/project';
-import { SERIALIZER, OBJIOItem } from '../objio/item';
-import { User } from './user';
-import { Timer } from '../common/timer';
+import { SERIALIZER, OBJIOItem } from '../../objio/item';
+import { User } from './user-object';
+import { Timer } from '../../common/timer';
 
 export class Project<T extends OBJIOItem = OBJIOItem> extends Base {
   private watchingUserIds: { [userId: string]: { user: User } } = {};

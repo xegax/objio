@@ -14,7 +14,7 @@ import {
 } from './store';
 import { Requestor } from '../common/requestor';
 import { ExtPromise } from '../common/ext-promise';
-import { User } from '../client/user';
+import { UserObject } from '../object/client/user-object';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -113,7 +113,7 @@ export interface OBJIOArgs {
   saveTime?: number;
   context?: OBJIOContext;
   server?: boolean;
-  getUserById?: (userId: string) => Promise<User>;
+  getUserById?: (userId: string) => Promise<UserObject>;
 }
 
 export class OBJIO {
@@ -128,7 +128,7 @@ export class OBJIO {
   };
   private errorHandler: ErrorHandler;
   private server: boolean = false;
-  private getUserByIdImpl: (userId: string) => Promise<User>;
+  private getUserByIdImpl: (userId: string) => Promise<UserObject>;
 
   static create(args: OBJIOArgs): Promise<OBJIO> {
     let obj = new OBJIO();
@@ -187,7 +187,7 @@ export class OBJIO {
     return this.savingQueue.addToSave(obj);
   }
 
-  getUserById(userId: string): Promise<User> {
+  getUserById(userId: string): Promise<UserObject> {
     if (!this.getUserByIdImpl)
       return Promise.reject('getUserById not defined');
 
@@ -288,7 +288,7 @@ export class OBJIO {
 
       const objClass = OBJIOItem.getClass(obj);
 
-      const holder = obj.getHolder();
+      const holder = obj.holder;
       const id = holder.getID();
 
       objsMap[id] = obj;
@@ -397,7 +397,7 @@ export class OBJIO {
   private updateObjectsImpl(versions: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
     const objs = versions.filter(item => {
       const obj = this.objectMap[item.id];
-      return obj == null || obj.getHolder().getVersion() != item.version;
+      return obj == null || obj.holder.getVersion() != item.version;
     });
 
     const updateObject = (item: { id: string, version: string }) => {

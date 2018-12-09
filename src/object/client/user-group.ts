@@ -1,4 +1,4 @@
-import { OBJIOItem, SERIALIZER } from '../objio/item';
+import { OBJIOItem, SERIALIZER } from '../../objio/item';
 
 export class UserGroup extends OBJIOItem {
   protected name: string;
@@ -42,5 +42,5 @@ export class AdminGroup extends UserGroup {
 
   static TYPE_ID = 'AdminGroup';
   static SERIALIZE: SERIALIZER = () => ({
-  });
+  })
 }

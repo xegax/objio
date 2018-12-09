@@ -1,9 +1,9 @@
-import { OBJIOItem, SERIALIZER } from '../objio/item';
+import { OBJIOItem, SERIALIZER } from '../../objio/item';
 import { UserGroup } from './user-group';
 
 export type AccessType = 'write' | 'read' | 'create';
 
-export class User extends OBJIOItem {
+export class UserObject extends OBJIOItem {
   login: string;
   email: string;
 

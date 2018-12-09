@@ -1,6 +1,6 @@
 import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
-import { User, AccessType } from '../client/user';
+import { UserObject, AccessType } from '../object/client/user-object';
 import { ExtPromise, Cancelable } from '../common/ext-promise';
 
 export type Tags = Array<string>;
@@ -85,7 +85,7 @@ export interface OBJIOItemHolderOwner {
   getObject(id: string): Promise<OBJIOItem>;
   invoke(args: InvokeMethodArgs & {obj: OBJIOItem}): Promise<any>;
   context(): OBJIOContext;
-  getUserById(userId: string): Promise<User>;
+  getUserById(userId: string): Promise<UserObject>;
   isClient(): boolean;
 }
 
@@ -176,7 +176,7 @@ export class OBJIOItemHolder extends Publisher {
     return this.eventHandler;
   }
 
-  getUserById<T extends User = User>(userId: string): Promise<T> {
+  getUserById<T extends UserObject = UserObject>(userId: string): Promise<T> {
     return this.owner.getUserById(userId) as Promise<T>;
   }
 
@@ -201,8 +201,9 @@ export class OBJIOItemHolder extends Publisher {
   }
 
   save(): Promise<any> {
+    // it is ok, after create a local copy some fields can be modified
     if (!this.owner)
-      return Promise.reject('owner not defined');
+      return;
 
     return this.owner.save(this.obj);
   }
@@ -238,7 +239,7 @@ export class OBJIOItemHolder extends Publisher {
 
       let newValue: string;
       if (fieldItem.type == 'object') {
-        newValue = (value as OBJIOItem).getHolder().getID();
+        newValue = (value as OBJIOItem).holder.getID();
       } else if (fieldItem.type == 'json') {
         if (userCtxMap && userCtxMap[userId])
           value = userCtxMap[userId];
@@ -300,7 +301,7 @@ export class OBJIOItemHolder extends Publisher {
 
   invokeMethod<T = any>(args: InvokeArgs): Cancelable<T> {
     if (!this.owner)
-      return Promise.reject('owner not defined') as Cancelable<T>;
+      throw 'owner not defined';
 
     const p = this.owner.invoke({
       id: this.id,
@@ -340,8 +341,8 @@ export class OBJIOItem {
     version: ''
   });
 
-  getHolder(): OBJIOItemHolder {
-    return this.holder;
+  getInvokesInProgress(): number {
+    return this.holder.getInvokesInProgress();
   }
 
   static writeToObject(args: WriteToObjectArgs): WriteToObjResult {
@@ -441,9 +442,5 @@ export class OBJIOItem {
     if (!obj)
       return this as any;
     return obj.constructor as any as OBJIOItemClass;
-  }
-
-  static invokeMethod<T>(obj: OBJIOItem, args: InvokeArgs): Cancelable<T> {
-    return obj.holder.invokeMethod(args);
   }
 }

@@ -1,5 +1,5 @@
-import { OBJIOItem, SERIALIZER } from '../objio/item';
-import { AccessType } from './user';
+import { OBJIOItem, SERIALIZER } from '../../objio/item';
+import { AccessType } from './user-object';
 
 export interface UserDesc {
   name: string;

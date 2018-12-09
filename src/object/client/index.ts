@@ -1,13 +1,13 @@
-import { OBJIOItemClass } from '../objio/item';
+import { OBJIOItemClass } from '../../objio/item';
 import { Project } from './project';
-import { User } from './user';
+import { UserObject } from './user-object';
 import { UserGroup } from './user-group';
 import { ServerInstance } from './server-instance';
 
 export function getClasses(): Array<OBJIOItemClass> {
   return [
     Project,
-    User,
+    UserObject,
     UserGroup,
     ServerInstance
   ];

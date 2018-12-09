@@ -1,8 +1,8 @@
-import { SERIALIZER } from '../objio/item';
+import { SERIALIZER } from '../../objio/item';
 import { ServerInstance as Base } from '../client/server-instance';
-import { User } from './user';
+import { User } from './user-object';
 import { UserGroup, AdminGroup } from './user-group';
-import { AccessType } from '../client/user';
+import { AccessType } from '../client/user-object';
 
 export class ServerInstance extends Base<User, UserGroup> {
   protected adminGroup = new AdminGroup();

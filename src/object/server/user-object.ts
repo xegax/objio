@@ -1,5 +1,5 @@
-import { User as Base, AccessType } from '../client/user';
-import { SERIALIZER } from '../objio/item';
+import { UserObject as Base, AccessType } from '../client/user-object';
+import { SERIALIZER } from '../../objio/item';
 import { UserGroup } from './user-group';
 
 export { AccessType };

@@ -1,9 +1,9 @@
-import { SERIALIZER } from '../objio/item';
+import { SERIALIZER } from '../../objio/item';
 import { UserGroup as Base, AdminGroup } from '../client/user-group';
 
 export {
   AdminGroup
-}
+};
 
 export interface UserGroupArgs {
   name: string;

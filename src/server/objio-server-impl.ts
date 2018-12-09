@@ -8,12 +8,12 @@ import {
   Field
 } from '../index';
 import { OBJIOFSLocalStore } from './objio-fs-store';
-import { existsSync, lstatSync, mkdirSync } from 'fs';
-import { ServerInstance } from './server-instance';
+import { existsSync, mkdirSync } from 'fs';
+import { ServerInstance } from '../object/server/server-instance';
 import { OBJIOItemClass } from '../objio/item';
-import { UserGroup } from './user-group';
-import { User, AccessType } from './user';
-import { Project } from './project';
+import { UserGroup } from '../object/server/user-group';
+import { User, AccessType } from '../object/server/user-object';
+import { Project } from '../object/server/project';
 
 const PRIVATE_PATH = 'private';
 const PUBLIC_PATH = 'public';

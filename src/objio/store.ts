@@ -1,7 +1,7 @@
 import { OBJIOFactory} from './factory';
 import { cloneDeep } from 'lodash';
 import { SERIALIZE, FieldFilter } from './item';
-import { User } from '../client/user';
+import { UserObject } from '../object/client/user-object';
 
 export interface JSONObj {
   [key: string]: string | number;
@@ -43,7 +43,7 @@ export type InvokeMethodArgs = {
   id: string;
   methodName: string;
   userId: string;
-  user?: User;
+  user?: UserObject;
   args: Object;
   onProgress?(value: number): void;
 };

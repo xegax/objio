@@ -60,7 +60,7 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
 
   static saveStore(obj: OBJIOArray): SaveStoreResult {
     return {
-      arr: JSON.stringify(obj.arr.map(item => item.getHolder().getID()))
+      arr: JSON.stringify(obj.arr.map(item => item.holder.getID()))
     };
   }
 
