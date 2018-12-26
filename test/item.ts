@@ -15,12 +15,12 @@ class DummyCont extends OBJIOItem {
   constructor() {
     super();
 
-    this.holder.setMethodsToInvoke({
+    /*this.holder.setMethodsToInvoke({
       increase: () => {
         this.counter++;
         this.holder.save();
       }
-    });
+    });*/
   }
 
   static TYPE_ID = 'DummyCont';

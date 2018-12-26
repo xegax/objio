@@ -9,12 +9,12 @@ function getArray(arr: Array<OBJIOItem>): OBJIOArray {
 }
 
 function getIDS(arr: Array<OBJIOItem>): Array<string> {
-  return arr.map(obj => obj.getHolder().getID());
+  return arr.map(obj => obj.holder.getID());
 }
 
 function getMap(arr: Array<OBJIOItem>) {
   let map = {};
-  arr.forEach(item => map[item.getHolder().getID()] = item);
+  arr.forEach(item => map[item.holder.getID()] = item);
   return map;
 }
 
