@@ -1,7 +1,6 @@
 import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
 import { UserObject, AccessType } from '../object/client/user-object';
-import { ExtPromise, Cancelable } from '../common/ext-promise';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
@@ -299,7 +298,7 @@ export class OBJIOItemHolder extends Publisher {
     return this.invokesInProgress;
   }
 
-  invokeMethod<T = any>(args: InvokeArgs): Cancelable<T> {
+  invokeMethod<T = any>(args: InvokeArgs): Promise<T> {
     if (!this.owner)
       throw 'owner not defined';
 
@@ -310,25 +309,13 @@ export class OBJIOItemHolder extends Publisher {
       args: args.args,
       userId: args.userId,
       onProgress: args.onProgress
-    })
-    .then(res => {
+    }).finally(() => {
       this.addInvokesCounter(-1);
-      return res;
-    })
-    .catch(err => {
-      this.addInvokesCounter(-1);
-      return Promise.reject(err);
     });
 
     this.addInvokesCounter(1);
 
-    return (
-      ExtPromise()
-      .cancelable(p)
-      .onCancel(() => {
-        this.addInvokesCounter(-1);
-      })
-    );
+    return p;
   }
 }
 

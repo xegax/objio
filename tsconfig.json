@@ -2,10 +2,13 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "es5",
-    "lib": ["es6", "dom"],
-    "rootDirs": ["src"],
+    "lib": ["es5", "es2015.iterable", "es2015.core", "es2015.collection", "dom"], 
     "moduleResolution": "node",
     "noImplicitAny": false,
-    "sourceMap": true
-  }
+    "sourceMap": true,
+    "declaration": true
+  },
+  "exclude": [
+    "test"
+  ]
 }

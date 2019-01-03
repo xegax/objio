@@ -5,17 +5,12 @@
   "main": "index.js",
   "repository": "git@github.com:xegax/objio.git",
   "scripts": {
-    "prepare": "npm run clean && tsc -p tsconfig.publish.json -outDir .",
-    "postpublish": "npm run clean",
-    "dist": "tsc -p tsconfig.publish.json -outDir build && npm run copy-dist",
-    "copy-dist": "copyfiles -u 1 build/**/*.* ../../objio",
-    "dev": "npm run clean-build && tsc -p tsconfig.publish.json -outDir build && shx cp package.json build",
+    "prepare": "npm run clean && tsc -p tsconfig.json -outDir .",
     "test": "node_modules/.bin/mocha",
-    "dev-test": "npm run clean-build && tsc -p tsconfig.json && npm run test",
+    "dev-test": "tsc -p tsconfig.json && npm run test",
     "clean": "npm run clean-src && npm run clean-test",
     "clean-src": "shx rm -rf src/**/*.js src/**/*.js.map src/**/*.d.ts *.d.ts *.js *.js.map server common objio client object",
-    "clean-test": "shx rm -rf test/**/*.js test/**/*.js.map",
-    "clean-build": "shx rm -rf build/**/*"
+    "clean-test": "shx rm -rf test/**/*.js test/**/*.js.map"
   },
   "author": "xega",
   "license": "ISC",
@@ -24,12 +19,14 @@
     "@types/lodash": "^4.14.93",
     "@types/mocha": "^5.2.0",
     "@types/node": "^9.6.23",
+    "@types/bluebird-global": "^3.5.9",
     "chai": "^4.1.2",
     "lodash": "^4.17.4",
     "mocha": "^5.1.1"
   },
   "dependencies": {
     "axios": "^0.18.0",
-    "lodash": "^4.17.4"
+    "lodash": "^4.17.4",
+    "bluebird": "^3.5.3"
   }
 }
