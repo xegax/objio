@@ -184,10 +184,10 @@ export class OBJIOServerStore implements OBJIOStore {
   invokeMethod(args: InvokeMethodArgs): Promise<any> {
     return Promise.resolve(this.objio.getObject(args.id))
     .then(obj => {
-      if (obj)
-        return obj;
+      if (!obj)
+        return this.objio.loadObject(args.id, args.userId);
 
-      return this.objio.loadObject(args.id, args.userId);
+      return obj; 
     })
     .then(obj => {
       if (!obj)
@@ -195,8 +195,8 @@ export class OBJIOServerStore implements OBJIOStore {
 
       const methods = obj.holder.getMethodsToInvoke();
       const item = methods[args.methodName];
-      if (args.user && !args.user.hasRight(item.rights, []))
-        throw new Error(`Access denied to invoke ${args.methodName}`);
+      /*if (args.user && !args.user.hasRight(item.rights, []))
+        throw new Error(`Access denied to invoke ${args.methodName}`);*/
 
       if (!item)
         throw new Error(`method ${args.methodName} not found`);

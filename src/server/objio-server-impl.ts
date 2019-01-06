@@ -9,18 +9,17 @@ import {
 } from '../index';
 import { OBJIOFSLocalStore } from './objio-fs-store';
 import { existsSync, mkdirSync } from 'fs';
-import { ServerInstance } from '../object/server/server-instance';
+import { ServerInstance } from '../project/server/server-instance';
 import { OBJIOItemClass } from '../objio/item';
-import { UserGroup } from '../object/server/user-group';
-import { User, AccessType } from '../object/server/user-object';
-import { Project } from '../object/server/project';
+import { UserObject, AccessType } from '../project/server/user-object';
+import { Project } from '../project/server/project';
 
 const PRIVATE_PATH = 'private';
 const PUBLIC_PATH = 'public';
 
 interface Params<GET, POST, COOKIE> extends ParamsBase<GET, POST, COOKIE> {
   userId: string;
-  user: User;
+  user: UserObject;
 }
 
 type Handler<GET, POST, COOKIE> = (
@@ -31,7 +30,7 @@ type Handler<GET, POST, COOKIE> = (
 interface DataParams<GET, COOKIE> extends DataParamsBase<GET, COOKIE> {
   get: GET;
   userId: string;
-  user: User;
+  user: UserObject;
 }
 
 type DataHandler<GET, COOKIE> = (
@@ -60,7 +59,7 @@ interface Cookies {
 interface Session {
   startTime: Date;
   lastTime: Date;
-  user: User;
+  user: UserObject;
 }
 
 class RestrictionPolicy {
@@ -119,16 +118,12 @@ class RestrictionPolicy {
       if (!serverObj.hasRight(sess.user, accessType))
         return params.error(`Forbidden, you do not have right to ${accessType}`, 403);
 
-      if (params.get.prj == 'main' && !serverObj.isAdmin(sess.user))
-        return params.error('Access denied', 403);
-
       const nextParams = {
         ...params,
         userId: sess.user.getUserId(),
         user: sess.user
       };
 
-      sess.user.onRequest(accessType);
       handler(nextParams, addOnClose);
     }, addOnClose);
   }
@@ -150,7 +145,6 @@ class RestrictionPolicy {
           if (!serverObj.hasRight(sess.user, accessType))
             return reject('Forbidden');
 
-          sess.user.onRequest(accessType);
           const userId = sess.user.getUserId();
           handler({...params, userId}, resolve, reject);
         }
@@ -164,7 +158,7 @@ interface ObjWatcherItem {
 }
 
 interface DefferredItem {
-  user: User;
+  user: UserObject;
   version: number;
   handler: () => void;
 }
@@ -235,7 +229,7 @@ interface SendFileArgs extends PrjData {
   name: string;
   size: number;
   mime: string;
-  user: User;
+  user: UserObject;
 }
 
 class ProjectManager {
@@ -261,7 +255,7 @@ class ProjectManager {
     return [ this.rootDir, this.projectsDir, project, PUBLIC_PATH ].join('/');
   }
 
-  createProject(args: { user?: User, projectId?: string }): Promise<ProjectStore> {
+  createProject(args: { user?: UserObject, projectId?: string }): Promise<ProjectStore> {
     const { projectId } = args;
     const prjPath = this.getProjectPath(projectId);
     if (existsSync(prjPath))
@@ -277,7 +271,7 @@ class ProjectManager {
     return new Project();
   }
 
-  getProject(args: { user?: User, projectId?: string }): Promise<ProjectStore> {
+  getProject(args: { user?: UserObject, projectId?: string }): Promise<ProjectStore> {
     const projectId = args.projectId || 'main';
     const project = this.projectMap[projectId] as ProjectStore;
     if (project) {
@@ -303,7 +297,7 @@ class ProjectManager {
             filesPath: this.getFilePath(projectId) + '/'
           },
           saveTime: 10,
-          getUserById: userId => Promise.resolve(serverObj.findUser({ userId }))
+          getUserById: userId => Promise.resolve(serverObj.getUserById( userId ))
       })
       .then(store => {
         const objio = store.getOBJIO();
@@ -312,7 +306,7 @@ class ProjectManager {
           .catch(() => {
             let prj = this.createNewProject();
             return (
-              objio.createObject(prj, args.user.getUserId())
+              objio.createObject(prj)
               .then(() => prj)
             );
           }),
@@ -345,8 +339,7 @@ class ProjectManager {
 export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateResult> {
   const classes: Array<OBJIOItemClass> = [
     ServerInstance,
-    User,
-    UserGroup,
+    UserObject,
     Project
   ];
 
@@ -362,13 +355,15 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   }));
 
   let main: ProjectStore;
+  let prj: Project;
   try {
     main = await manager.getProject({ projectId: 'main' });
-    serverObj = await main.store.getOBJIO().loadObject<ServerInstance>();
+    prj = await main.store.getOBJIO().loadObject<Project>();
+    serverObj = prj.getObjects().get(0) as ServerInstance;
+    if (!serverObj || !(serverObj instanceof ServerInstance))
+      await prj.appendObject(serverObj = ServerInstance.createNew());
   } catch (e) {
     console.log(e);
-    serverObj = new ServerInstance();
-    await main.store.getOBJIO().createObject(serverObj);
   }
 
   srv.addDataHandler<SendFileArgs>('write', 'send-file', (params, done, error) => {
@@ -468,13 +463,9 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
       deferredHandler.push(item);
 
       addOnClose(() => {
-        params.user.onWatchEnd();
-        prj.onWatchingEnd(params.user);
         deferredHandler.splice(deferredHandler.indexOf(item), 1);
       });
     }
-    params.user.onWatchStart();
-    prj.onWatchingStart(params.user);
   });
 
   srv.addJsonHandler<PrjData, {}>('read', 'watcher/items', async (params) => {

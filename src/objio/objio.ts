@@ -13,7 +13,7 @@ import {
   CreateObjectsArgs
 } from './store';
 import { Requestor } from '../common/requestor';
-import { UserObject } from '../object/client/user-object';
+import { UserObjectBase } from '../base/user-object';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -112,7 +112,7 @@ export interface OBJIOArgs {
   saveTime?: number;
   context?: OBJIOContext;
   server?: boolean;
-  getUserById?: (userId: string) => Promise<UserObject>;
+  getUserById?: (userId: string) => Promise<UserObjectBase>;
 }
 
 export class OBJIO {
@@ -127,7 +127,7 @@ export class OBJIO {
   };
   private errorHandler: ErrorHandler;
   private server: boolean = false;
-  private getUserByIdImpl: (userId: string) => Promise<UserObject>;
+  private getUserByIdImpl: (userId: string) => Promise<UserObjectBase>;
 
   static create(args: OBJIOArgs): Promise<OBJIO> {
     let obj = new OBJIO();
@@ -186,7 +186,7 @@ export class OBJIO {
     return this.savingQueue.addToSave(obj);
   }
 
-  getUserById(userId: string): Promise<UserObject> {
+  getUserById(userId: string): Promise<UserObjectBase> {
     if (!this.getUserByIdImpl)
       return Promise.reject('getUserById not defined');
 

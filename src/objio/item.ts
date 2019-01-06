@@ -1,6 +1,6 @@
 import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
-import { UserObject, AccessType } from '../object/client/user-object';
+import { UserObjectBase, AccessType } from '../base/user-object';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
@@ -84,7 +84,7 @@ export interface OBJIOItemHolderOwner {
   getObject(id: string): Promise<OBJIOItem>;
   invoke(args: InvokeMethodArgs & {obj: OBJIOItem}): Promise<any>;
   context(): OBJIOContext;
-  getUserById(userId: string): Promise<UserObject>;
+  getUserById(userId: string): Promise<UserObjectBase>;
   isClient(): boolean;
 }
 
@@ -175,8 +175,8 @@ export class OBJIOItemHolder extends Publisher {
     return this.eventHandler;
   }
 
-  getUserById<T extends UserObject = UserObject>(userId: string): Promise<T> {
-    return this.owner.getUserById(userId) as Promise<T>;
+  getUserById(userId: string): Promise<UserObjectBase> {
+    return this.owner.getUserById(userId) as Promise<UserObjectBase>;
   }
 
   getID(): string {

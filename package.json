@@ -9,7 +9,7 @@
     "test": "node_modules/.bin/mocha",
     "dev-test": "tsc -p tsconfig.json && npm run test",
     "clean": "npm run clean-src && npm run clean-test",
-    "clean-src": "shx rm -rf src/**/*.js src/**/*.js.map src/**/*.d.ts *.d.ts *.js *.js.map server common objio client object",
+    "clean-src": "shx rm -rf src/**/*.js src/**/*.js.map src/**/*.d.ts *.d.ts *.js *.js.map server common objio project object base",
     "clean-test": "shx rm -rf test/**/*.js test/**/*.js.map"
   },
   "author": "xega",
