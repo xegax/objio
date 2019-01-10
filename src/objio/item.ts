@@ -168,7 +168,11 @@ export class OBJIOItemHolder extends Publisher {
   }
 
   addEventHandler(handler: Partial<OBJIOEventHandler>) {
-    this.eventHandler.push({...handler});
+    this.eventHandler.push(handler);
+  }
+
+  removeEventHandler(handler: Partial<OBJIOEventHandler>) {
+    this.eventHandler.splice(this.eventHandler.indexOf(handler), 1);
   }
 
   getEventHandler(): Array<Partial<OBJIOEventHandler>> {

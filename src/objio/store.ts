@@ -128,7 +128,8 @@ export interface ObjStore {
   classId: string;
   version: string;
   userId: string;
-  time: number;
+  createTime: number;
+  modifyTime: number;
 }
 
 export interface StoreData {
@@ -183,13 +184,15 @@ export class OBJIOLocalStore implements OBJIOStore {
       if (this.objects[id])
         return;
 
+      const time = Date.now();
       const newId = '' + this.idCounter++;
       const storeItem = this.objects[newId] = {
         data: obj.json || {},
         classId: obj.classId,
         version: nextVersion(''),
         userId: args.userId,
-        time: Date.now()
+        createTime: time,
+        modifyTime: time
       };
 
       res[id] = {
@@ -281,6 +284,7 @@ export class OBJIOLocalStore implements OBJIOStore {
 
   private writeObjectsImpl(args: WriteObjectsArgs) {
     // TODO: добавить проверку полей по typeId
+    const time = Date.now();
     return args.arr.map(item => {
       const currData = this.objects[item.id];
       const newData: JSONObj = {...currData.data, ...item.json};
@@ -295,6 +299,7 @@ export class OBJIOLocalStore implements OBJIOStore {
 
         upd++;
         currData.data[key] = newData[key];
+        currData.modifyTime = time;
       });
 
       if (upd)

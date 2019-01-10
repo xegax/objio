@@ -8,28 +8,86 @@ export interface UserObjectDesc {
   name: string;
 }
 
+export interface UserArgs {
+  login: string;
+  password: string;
+  email: string;
+}
+
+export interface ModifyArgs {
+  email: string;
+  name: string;
+  login: string;
+  password: string;
+}
+
+export interface SessionStat {
+  startTime: number;
+  time: number;
+  sessionsNum: number;
+  invokesNum: number;
+  writesNum: number;
+  readsNum: number;
+  createsNum: number;
+  requestsNum: number;
+}
+
 export abstract class UserObjectBase extends OBJIOItem {
   protected name: string;
   protected login: string;
+  protected email: string;
+  protected online: number = 0;
 
-  setName(name: string) {
-    if (this.name == name)
-      return;
+  constructor(args?: UserArgs) {
+    super();
 
-    this.name = name;
+    if (args) {
+      this.login = args.login;
+      this.email = args.email;
+    }
+  }
+
+  isOnline() {
+    return !!this.online;
+  }
+
+  setOnline(online: boolean) {
+    let value = online ? 1 : 0;
+    if (this.online == value)
+      return false;
+
+    this.online = value;
     this.holder.save();
+  }
+
+  getName() {
+    return this.name;
+  }
+
+  getLogin() {
+    return this.login;
+  }
+
+  getEmail() {
+    return this.email;
   }
 
   getUserDesc(): UserObjectDesc {
     return {
-      name: this.name,
-      login: this.login
+      login: this.login,
+      name: this.name
     };
   }
+
+  abstract getLastSessionStat(): Promise<SessionStat>;
+  abstract getTotalStat(): Promise<SessionStat>;
+  abstract modify(args: Partial<ModifyArgs>): Promise<void>;
 
   static TYPE_ID = 'SpecialUserObject';
   static SERIALIZE: SERIALIZER = () => ({
     'name': { type: 'string' },
-    'login': { type: 'string', const: true }
+    'login': { type: 'string', const: true },
+    'email': { type: 'string', const: true },
+    'online': { type: 'number', const: true }
   });
 }

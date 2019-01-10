@@ -90,7 +90,7 @@ class RestrictionPolicy {
         lastTime: new Date(),
         user
       };
-
+      user.onStartSession();
       params.done({error: '', sessId});
     });
   }
@@ -98,17 +98,29 @@ class RestrictionPolicy {
   checkAndGetSession(sessId: string): Session {
     let sess = this.sess[sessId];
     if (sess && msToMin(Date.now() - sess.lastTime.getTime()) > this.maxTimeMinOfInactivity) {
+      sess.user.onEndSession();
       delete this.sess[sessId];
-      sess = null;
+      return null;
     }
 
     return sess;
   }
 
+  kickUser(user: UserObject) {
+    let id = Object.keys(this.sess).find(id => this.sess[id].user == user);
+    if (!id)
+      return false;
+
+    delete this.sess[id];
+    user.onEndSession();
+    user.holder.save();
+    return true;
+  }
+
   addJsonHandler<GET, POST>( accessType: AccessType,
-                                               url: string,
-                                               handler: Handler<PrjData, POST, Cookies>,
-                                               addOnClose?: (handler: () => void) => void) {
+                             url: string,
+                             handler: Handler<PrjData, POST, Cookies>,
+                             addOnClose?: (handler: () => void) => void) {
     this.srv.addJsonHandler(url, (params: Params<PrjData, POST, Cookies>, addOnClose) => {
       const sess = this.checkAndGetSession(params.cookie.sessId);
       if (!sess)
@@ -146,7 +158,7 @@ class RestrictionPolicy {
             return reject('Forbidden');
 
           const userId = sess.user.getUserId();
-          handler({...params, userId}, resolve, reject);
+          handler({...params, userId, user: sess.user}, resolve, reject);
         }
     );
   }
@@ -173,6 +185,7 @@ function nextVersion(ver: string) {
 class ObjWatcher {
   private objs: Array<ObjWatcherItem> = [];
   private version: number = 0;
+  private deferredHandler: Array<DefferredItem> = [];
 
   getVersion(): number {
     return this.version;
@@ -201,6 +214,20 @@ class ObjWatcher {
   getObjects(): Array<ObjWatcherItem> {
     return this.objs;
   }
+
+  addHandler(handler: DefferredItem) {
+    this.deferredHandler.push(handler);
+  }
+
+  removeHandler(handler: DefferredItem) {
+    this.deferredHandler.splice(this.deferredHandler.indexOf(handler), 1);
+  }
+
+  flushDeffer = () => {
+    console.log('flush', this.deferredHandler.length, 'handlers');
+    this.deferredHandler.forEach(item => item.handler());
+    this.deferredHandler = [];
+  };
 }
 
 interface ProjectStore {
@@ -212,13 +239,6 @@ interface ProjectStore {
 interface PrjData {
   prj?: string;
 }
-
-let deferredHandler: Array<DefferredItem> = [];
-const flushDeffer = () => {
-  console.log('flush', deferredHandler.length, 'handlers');
-  deferredHandler.forEach(item => item.handler());
-  deferredHandler = [];
-};
 
 export interface ServerCreateResult {
   store: OBJIOServerStore;
@@ -322,7 +342,7 @@ class ProjectManager {
             const v = watcher.getVersion();
             objs.forEach(obj => watcher.addObject(obj.holder.getID(), obj.holder.getVersion()));
             if (v != watcher.getVersion())
-              flushDeffer();
+              watcher.flushDeffer();
           }
         });
 
@@ -354,6 +374,15 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     baseUrl: args.baseUrl || '/handler/objio/'
   }));
 
+  const siHandler = {
+    kickUser: (user: UserObject) => {
+      if (!srv.kickUser(user))
+        return Promise.reject('Something wrong');
+
+      return Promise.resolve();
+    }
+  };
+
   let main: ProjectStore;
   let prj: Project;
   try {
@@ -365,8 +394,11 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   } catch (e) {
     console.log(e);
   }
+  serverObj.setHandler(siHandler);
 
   srv.addDataHandler<SendFileArgs>('write', 'send-file', (params, done, error) => {
+    params.user.pushRequestStat('write');
+
     return (
       manager.getProject({ projectId: params.get.prj, user: params.user })
       .then(prj => {
@@ -384,6 +416,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   });
 
   srv.addJsonHandler<PrjData, CreateObjectsArgs>('create', 'create-object', async (params) => {
+    params.user.pushRequestStat('create');
+
     const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
     try {
       params.done(await store.createObjects({...params.post, userId: params.userId}));
@@ -393,6 +427,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   });
 
   srv.addJsonHandler<PrjData, WriteObjectsArgs>('write', 'write-objects', async (params) => {
+    params.user.pushRequestStat('write');
+
     const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
     const res = await store.writeObjects({...params.post, userId: params.userId});
 
@@ -406,6 +442,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, {id: string}>('read', 'read-object', async (params) => {
     try {
+      params.user.pushRequestStat('read');
+
       const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
       params.done(await store.readObject({id: params.post.id, userId: params.userId}));
     } catch (e) {
@@ -415,6 +453,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, {id: string}>('read', 'read-objects', async (params) => {
     try {
+      params.user.pushRequestStat('read');
+  
       const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
       params.done(await store.readObjects({id: params.post.id, userId: params.userId}));
     } catch (e) {
@@ -424,6 +464,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
   srv.addJsonHandler<PrjData, {id: string, method: string, args: Object}>('read', 'invoke-method', async (params) => {
     try {
+      params.user.pushRequestStat('invoke');
+  
       const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
       params.done(await store.invokeMethod({
@@ -439,6 +481,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   });
 
   srv.addJsonHandler<PrjData, CreateObjectsArgs>('create', 'create-project', (params) => {
+    params.user.pushRequestStat('create');
+
     manager.createProject({ projectId: params.get.prj, user: params.user })
     .then(() => {
       params.done({});
@@ -449,6 +493,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   });
 
   srv.addJsonHandler<PrjData, {version: number}>('read', 'watcher/version', async (params, addOnClose) => {
+    params.user.pushRequestStat('read');
+
     const { watcher, prj } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
     const version = watcher.getVersion();
@@ -460,20 +506,24 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
         version: +params.post.version,
         handler: () => params.done({version: watcher.getVersion()})
       };
-      deferredHandler.push(item);
+      watcher.addHandler(item);
 
       addOnClose(() => {
-        deferredHandler.splice(deferredHandler.indexOf(item), 1);
+        watcher.removeHandler(item);
       });
     }
   });
 
   srv.addJsonHandler<PrjData, {}>('read', 'watcher/items', async (params) => {
+    params.user.pushRequestStat('read');
+
     const { watcher } = await manager.getProject({ projectId: params.get.prj, user: params.user });
     params.done(watcher.getObjects());
   });
 
   srv.addJsonHandler<PrjData, {}>('write', 'clean', (params) => {
+    params.user.pushRequestStat('write');
+
     console.log('clean process started');
     manager.getProject({ projectId: params.get.prj, user: params.user })
     .then(res => {

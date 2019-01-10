@@ -218,15 +218,14 @@ export class OBJIO {
     return (
       this.store.invokeMethod(invokeArgs)
       .catch(error => {
-        if (!this.errorHandler)
-          return;
-
-        this.errorHandler({
+        this.errorHandler && this.errorHandler({
           type: 'invoke',
           error,
           obj,
           args: { method: name, args: args.args }
         });
+
+        return Promise.reject(error);
       })
     );
   }
@@ -476,10 +475,8 @@ export class OBJIO {
       return (
         req.getJSON<{ version: number }>({url: `${baseUrl}version`, postData: prev})
         .then((res: { version: number }) => {
-          if (res.version == prev.version) {
-            setTimeout(loop, timeOut);
-            return Promise.reject(null);
-          }
+          if (res.version == prev.version)
+            return Promise.delay(5000).then(() => getVersion());
 
           prev = { ...res };
         })
