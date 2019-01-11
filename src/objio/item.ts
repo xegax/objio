@@ -95,10 +95,17 @@ export interface InitArgs {
   owner: OBJIOItemHolderOwner;
 }
 
+export interface SendFileInvoke {
+  'sendFile': {
+    method: (args: Object, userId: string) => any,
+    rights: AccessType
+  };
+}
+
 export interface MethodsToInvoke {
   [method: string]: {
     method: (args: Object, userId: string) => any,
-    rights: AccessType;
+    rights: AccessType
   };
 }
 
@@ -128,7 +135,7 @@ export interface OBJIOEventHandler {
   onDelete(): Promise<any>;
 }
 
-export const EventType = {
+export const eventType = {
   invokesInProgress: 'invokesInProgress'
 };
 
@@ -136,7 +143,7 @@ export class OBJIOItemHolder extends Publisher {
   private id: string;
   private obj: OBJIOItem;
   private owner: OBJIOItemHolderOwner;
-  private methodsToInvoke: MethodsToInvoke = {};
+  private methodsToInvoke: (MethodsToInvoke | SendFileInvoke) = {};
   private eventHandler: Array<Partial<OBJIOEventHandler>> = [];
 
   private srvVersion: string = '';
@@ -163,7 +170,7 @@ export class OBJIOItemHolder extends Publisher {
     this.methodsToInvoke = methods;
   }
 
-  getMethodsToInvoke(): MethodsToInvoke {
+  getMethodsToInvoke(): MethodsToInvoke | SendFileInvoke {
     return this.methodsToInvoke;
   }
 
@@ -295,7 +302,7 @@ export class OBJIOItemHolder extends Publisher {
 
   protected addInvokesCounter(add: number) {
     this.invokesInProgress = Math.max(0, this.invokesInProgress + add);
-    this.delayedNotify({ type: EventType.invokesInProgress });
+    this.delayedNotify({ type: eventType.invokesInProgress });
   }
 
   getInvokesInProgress(): number {

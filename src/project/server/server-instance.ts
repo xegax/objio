@@ -1,6 +1,8 @@
 import { SERIALIZER } from '../../objio/item';
 import { ServerInstanceBase, TargetUserArgs, NewUserArgs } from '../../base/server-instance';
 import { UserObject, AccessType } from './user-object';
+import { RequestStat, createEmptyRequestStat } from '../../base/statistics';
+import { Timer } from '../../common/timer';
 
 export interface FindUserArgs {
   login: string;
@@ -11,12 +13,14 @@ export interface Handler {
   kickUser(user: UserObject): Promise<void>;
 }
 
+let instance: ServerInstance;
+
 export class ServerInstance extends ServerInstanceBase {
-  private static instance: ServerInstance;
   private handler: Handler = null;
+  private saveTimer = new Timer(() => this.holder.save());
 
   static get(): ServerInstance {
-    return ServerInstance.instance;
+    return instance;
   }
 
   static createNew(): ServerInstance {
@@ -27,7 +31,8 @@ export class ServerInstance extends ServerInstanceBase {
 
   constructor() {
     super();
-    ServerInstance.instance = this;
+
+    instance = this;
 
     this.holder.setMethodsToInvoke({
       kickUser: {
@@ -43,8 +48,22 @@ export class ServerInstance extends ServerInstanceBase {
         rights: 'write'
       }
     });
+
+    this.holder.addEventHandler({
+      onLoad: () => {
+        this.sessStat = createEmptyRequestStat();
+        this.sessStat.time = Date.now();
+        this.totalStat.startCount++;
+        return Promise.resolve();
+      }
+    });
   }
-  
+
+  onClose(): Promise<void> {
+    this.totalStat.time += Date.now() - this.sessStat.time;
+    return this.holder.save();
+  }
+
   setHandler(handler: Handler) {
     this.handler = handler;
   }
@@ -102,6 +121,51 @@ export class ServerInstance extends ServerInstanceBase {
   getUserById(userId: string): UserObject {
     const idx = this.users.find((v: UserObject) => v.getUserId() == userId);
     return this.users.get(idx) as UserObject;
+  }
+
+  pushRequestStat(stat: Partial<RequestStat>) {
+    if (stat.createNum) {
+      this.sessStat.createNum += stat.createNum;
+      this.totalStat.createNum += stat.createNum;
+    }
+
+    if (stat.getFilesNum) {
+      this.sessStat.getFilesNum += stat.getFilesNum;
+      this.totalStat.getFilesNum += stat.getFilesNum;
+    }
+
+    if (stat.invokeNum) {
+      this.sessStat.invokeNum += stat.invokeNum;
+      this.totalStat.invokeNum += stat.invokeNum;
+    }
+
+    if (stat.readNum) {
+      this.sessStat.readNum += stat.readNum;
+      this.totalStat.readNum += stat.readNum;
+    }
+
+    if (stat.recvBytes) {
+      this.sessStat.recvBytes += stat.recvBytes;
+      this.totalStat.recvBytes += stat.recvBytes;
+    }
+
+    if (stat.sentBytes) {
+      this.sessStat.sentBytes += stat.sentBytes;
+      this.totalStat.sentBytes += stat.sentBytes;
+    }
+
+    if (stat.requestNum) {
+      this.sessStat.requestNum += stat.requestNum;
+      this.totalStat.requestNum += stat.requestNum;
+    }
+
+    if (stat.writeNum) {
+      this.sessStat.writeNum += stat.writeNum;
+      this.totalStat.writeNum += stat.writeNum;
+    }
+
+    if (!this.saveTimer.isRunning())
+      this.saveTimer.run(5000);
   }
 
   static SERIALIZE: SERIALIZER = () => ({

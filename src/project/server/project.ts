@@ -1,6 +1,7 @@
 import { ProjectBase } from '../../base/project';
 import { SERIALIZER } from '../../objio/item';
 import { ServerInstance } from './server-instance';
+import { UserObjectDesc } from '../../base/user-object';
 
 export class Project extends ProjectBase {
   constructor() {
@@ -20,7 +21,7 @@ export class Project extends ProjectBase {
     });
   }
 
-  getCurrUserDesc(userId?: string) {
+  getCurrUserDesc(userId?: string): Promise<UserObjectDesc> {
     return Promise.resolve(ServerInstance.get().getUserById(userId).getUserDesc());
   }
 

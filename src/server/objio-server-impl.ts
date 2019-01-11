@@ -10,9 +10,11 @@ import {
 import { OBJIOFSLocalStore } from './objio-fs-store';
 import { existsSync, mkdirSync } from 'fs';
 import { ServerInstance } from '../project/server/server-instance';
-import { OBJIOItemClass } from '../objio/item';
+import { OBJIOItemClass, SendFileInvoke } from '../objio/item';
 import { UserObject, AccessType } from '../project/server/user-object';
 import { Project } from '../project/server/project';
+import { makeStatByType } from '../base/statistics';
+import { Transform } from 'stream';
 
 const PRIVATE_PATH = 'private';
 const PUBLIC_PATH = 'public';
@@ -62,18 +64,87 @@ interface Session {
   user: UserObject;
 }
 
+class FileRecvStat extends Transform {
+  _transform(chunk, env, cb) {
+    serverObj.pushRequestStat({ recvBytes: chunk.length });
+    this.push(chunk);
+    cb();
+  }
+}
+
+class StatHandler {
+  private srv: RestrictionPolicy;
+
+  constructor(srv: RestrictionPolicy) {
+    this.srv = srv;
+  }
+
+  addJsonHandler<GET, POST>(
+    type: AccessType,
+    url: string,
+    handler: Handler<PrjData, POST, Cookies>,
+    addOnClose?: (handler: () => void) => void) {
+
+    serverObj.pushRequestStat({ ...makeStatByType(type) });
+    this.srv.addJsonHandler(type, url, (params: Params<PrjData, POST, Cookies>, addOnClose) => {
+      const args = {
+        ...params,
+        done: data => {
+          const res = params.done(data);
+          serverObj.pushRequestStat({ sentBytes: res.length });
+          return res;
+        },
+        error: data => {
+          const res = params.error(data);
+          serverObj.pushRequestStat({ sentBytes: res.length });
+          return res;
+        }
+      };
+
+      serverObj.pushRequestStat({
+        ...makeStatByType(url == 'invoke-method' ? 'invoke' : type),
+        recvBytes: params.size
+      });
+
+      handler(args, addOnClose);
+    }, addOnClose);
+  }
+
+  addDataHandler<GET>(
+    type: AccessType,
+    url: string,
+    handler: DataHandler<GET, Cookies>) {
+
+    this.srv.addDataHandler(
+      type,
+      url,
+      (params: DataParams<GET, Cookies>, resolve: (res: any) => void, reject: (err: any) => void) => {
+        if (url == 'sendFile') {
+          params.stream = params.stream.pipe(new FileRecvStat());
+          handler(params, size => {
+            serverObj.pushRequestStat({ getFilesNum: 1 });
+            resolve(size);
+          }, reject);
+        } else {
+          handler(params, resolve, reject);
+        }
+      }
+    );
+  }
+}
+
 class RestrictionPolicy {
   private srv: Server;
-  private sess: {[id: string]: Session} = {};
+  private sess: { [id: string]: Session } = {};
   private maxTimeMinOfInactivity: number = 5;
 
   constructor(srv: Server) {
     this.srv = srv;
 
-    srv.addJsonHandler('login', (params: Params<{}, {login: string, passwd: string}, Cookies>) => {
+    srv.addJsonHandler('login', (params: Params<{}, { login: string, passwd: string }, Cookies>) => {
       const sess = this.checkAndGetSession(params.cookie.sessId);
       if (sess)
-        return params.done({error: 'Already logged in'});
+        return params.done({ error: 'Already logged in' });
 
       const user = serverObj.findUser({
         login: params.post.login,
@@ -81,7 +152,7 @@ class RestrictionPolicy {
       });
 
       if (!user)
-        return params.done({error: `User "${params.post.login}" not found or password is incorrect`});
+        return params.done({ error: `User "${params.post.login}" not found or password is incorrect` });
 
       const sessId = nextVersion('');
       params.cookie.sessId = sessId;
@@ -91,7 +162,7 @@ class RestrictionPolicy {
         user
       };
       user.onStartSession();
-      params.done({error: '', sessId});
+      params.done({ error: '', sessId });
     });
   }
 
@@ -117,10 +188,10 @@ class RestrictionPolicy {
     return true;
   }
 
-  addJsonHandler<GET, POST>( accessType: AccessType,
-                             url: string,
-                             handler: Handler<PrjData, POST, Cookies>,
-                             addOnClose?: (handler: () => void) => void) {
+  addJsonHandler<GET, POST>(accessType: AccessType,
+    url: string,
+    handler: Handler<PrjData, POST, Cookies>,
+    addOnClose?: (handler: () => void) => void) {
     this.srv.addJsonHandler(url, (params: Params<PrjData, POST, Cookies>, addOnClose) => {
       const sess = this.checkAndGetSession(params.cookie.sessId);
       if (!sess)
@@ -140,26 +211,26 @@ class RestrictionPolicy {
     }, addOnClose);
   }
 
-  addDataHandler<GET>( accessType: AccessType,
-                       url: string,
-                       handler: DataHandler<GET, Cookies>) {
+  addDataHandler<GET>(accessType: AccessType,
+    url: string,
+    handler: DataHandler<GET, Cookies>) {
     this.srv.addDataHandler(
       url,
       (
         params: DataParams<GET, Cookies>,
         resolve: (res: any) => void,
         reject: (err: any) => void) => {
-          const sess = this.checkAndGetSession(params.cookie.sessId);
-          if (!sess)
-            return reject('Authorization required');
+        const sess = this.checkAndGetSession(params.cookie.sessId);
+        if (!sess)
+          return reject('Authorization required');
 
-          sess.lastTime = new Date();
-          if (!serverObj.hasRight(sess.user, accessType))
-            return reject('Forbidden');
+        sess.lastTime = new Date();
+        if (!serverObj.hasRight(sess.user, accessType))
+          return reject('Forbidden');
 
-          const userId = sess.user.getUserId();
-          handler({...params, userId, user: sess.user}, resolve, reject);
-        }
+        const userId = sess.user.getUserId();
+        handler({ ...params, userId, user: sess.user }, resolve, reject);
+      }
     );
   }
 }
@@ -196,7 +267,7 @@ class ObjWatcher {
     if (idx != -1)
       this.objs.splice(idx, 1);
 
-    this.objs.splice(0, 0, {id, version});
+    this.objs.splice(0, 0, { id, version });
     this.version++;
   }
 
@@ -227,7 +298,7 @@ class ObjWatcher {
     console.log('flush', this.deferredHandler.length, 'handlers');
     this.deferredHandler.forEach(item => item.handler());
     this.deferredHandler = [];
-  };
+  }
 }
 
 interface ProjectStore {
@@ -255,7 +326,7 @@ interface SendFileArgs extends PrjData {
 class ProjectManager {
   private rootDir: string;
   private projectsDir: string = 'projects';
-  private projectMap: {[id: string]: ProjectStore | Promise<ProjectStore>} = {};
+  private projectMap: { [id: string]: ProjectStore | Promise<ProjectStore> } = {};
   private factory: OBJIOFactory;
 
   constructor(rootDir: string, factory: OBJIOFactory) {
@@ -264,15 +335,15 @@ class ProjectManager {
   }
 
   getProjectPath(project: string): string {
-    return [ this.rootDir, this.projectsDir, project].join('/');
+    return [this.rootDir, this.projectsDir, project].join('/');
   }
 
   getObjectsPath(project: string): string {
-    return [ this.rootDir, this.projectsDir, project, PRIVATE_PATH ].join('/');
+    return [this.rootDir, this.projectsDir, project, PRIVATE_PATH].join('/');
   }
 
   getFilePath(project: string): string {
-    return [ this.rootDir, this.projectsDir, project, PUBLIC_PATH ].join('/');
+    return [this.rootDir, this.projectsDir, project, PUBLIC_PATH].join('/');
   }
 
   createProject(args: { user?: UserObject, projectId?: string }): Promise<ProjectStore> {
@@ -281,9 +352,9 @@ class ProjectManager {
     if (existsSync(prjPath))
       throw 'project already exists';
 
-    mkdirSync( prjPath );
-    mkdirSync( this.getFilePath(projectId) );
-    mkdirSync( this.getObjectsPath(projectId) );
+    mkdirSync(prjPath);
+    mkdirSync(this.getFilePath(projectId));
+    mkdirSync(this.getObjectsPath(projectId));
     return this.getProject(args);
   }
 
@@ -308,50 +379,50 @@ class ProjectManager {
     return (
       this.projectMap[projectId] = OBJIOServerStore.create({
         factory: this.factory,
-        store: new OBJIOFSLocalStore(this.factory, [ projectPath, PRIVATE_PATH ].join('/')),
-          includeFilter: (field: Field): boolean => {
-            return !field.tags || !field.tags.length || field.tags.indexOf('sr') == -1;
-          },
-          context: {
-            objectsPath: this.getObjectsPath(projectId) + '/',
-            filesPath: this.getFilePath(projectId) + '/'
-          },
-          saveTime: 10,
-          getUserById: userId => Promise.resolve(serverObj.getUserById( userId ))
+        store: new OBJIOFSLocalStore(this.factory, [projectPath, PRIVATE_PATH].join('/')),
+        includeFilter: (field: Field): boolean => {
+          return !field.tags || !field.tags.length || field.tags.indexOf('sr') == -1;
+        },
+        context: {
+          objectsPath: this.getObjectsPath(projectId) + '/',
+          filesPath: this.getFilePath(projectId) + '/'
+        },
+        saveTime: 10,
+        getUserById: userId => Promise.resolve(serverObj.getUserById(userId))
       })
-      .then(store => {
-        const objio = store.getOBJIO();
-        return Promise.all([
-          objio.loadObject<Project>()
-          .catch(() => {
-            let prj = this.createNewProject();
-            return (
-              objio.createObject(prj)
-              .then(() => prj)
-            );
-          }),
-          store
-        ]);
-      })
-      .then(res => {
-        const [prj, store] = res;
+        .then(store => {
+          const objio = store.getOBJIO();
+          return Promise.all([
+            objio.loadObject<Project>()
+              .catch(() => {
+                let prj = this.createNewProject();
+                return (
+                  objio.createObject(prj)
+                    .then(() => prj)
+                );
+              }),
+            store
+          ]);
+        })
+        .then(res => {
+          const [prj, store] = res;
 
-        const watcher = new ObjWatcher();
-        store.getOBJIO().addObserver({
-          onSave: (objs: Array<OBJIOItem>) => {
-            const v = watcher.getVersion();
-            objs.forEach(obj => watcher.addObject(obj.holder.getID(), obj.holder.getVersion()));
-            if (v != watcher.getVersion())
-              watcher.flushDeffer();
-          }
-        });
+          const watcher = new ObjWatcher();
+          store.getOBJIO().addObserver({
+            onSave: (objs: Array<OBJIOItem>) => {
+              const v = watcher.getVersion();
+              objs.forEach(obj => watcher.addObject(obj.holder.getID(), obj.holder.getVersion()));
+              if (v != watcher.getVersion())
+                watcher.flushDeffer();
+            }
+          });
 
-        return this.projectMap[projectId] = {
-          prj,
-          store,
-          watcher
-        };
-      })
+          return this.projectMap[projectId] = {
+            prj,
+            store,
+            watcher
+          };
+        })
     );
   }
 }
@@ -367,16 +438,17 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     args.factory.registerItem(objClass);
   });
 
-  const manager = new ProjectManager( args.rootDir, args.factory );
+  const manager = new ProjectManager(args.rootDir, args.factory);
 
-  const srv = new RestrictionPolicy(createServer({
+  const rsrv = new RestrictionPolicy(createServer({
     port: args.port || 8088,
     baseUrl: args.baseUrl || '/handler/objio/'
   }));
+  let srv = new StatHandler(rsrv);
 
   const siHandler = {
     kickUser: (user: UserObject) => {
-      if (!srv.kickUser(user))
+      if (!rsrv.kickUser(user))
         return Promise.reject('Something wrong');
 
       return Promise.resolve();
@@ -396,22 +468,27 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   }
   serverObj.setHandler(siHandler);
 
-  srv.addDataHandler<SendFileArgs>('write', 'send-file', (params, done, error) => {
+  srv.addDataHandler<SendFileArgs>('write', 'sendFile', (params, done, error) => {
     params.user.pushRequestStat('write');
 
     return (
       manager.getProject({ projectId: params.get.prj, user: params.user })
-      .then(prj => {
-        const obj = prj.store.getOBJIO().getObject(params.get.id);
-        if (!obj)
-          return error('object not found');
+        .then(prj => {
+          const obj = prj.store.getOBJIO().getObject(params.get.id);
+          if (!obj)
+            return error('object not found');
 
-        const methods = obj.holder.getMethodsToInvoke();
-        if ('send-file' in methods)
-          methods['send-file'].method({ ...params.get, data: params.stream }, params.userId).then(() => done({}));
-        else
-          error(`method send-file of this object type = "${OBJIOItem.getClass(obj).TYPE_ID}" not found!`);
-      })
+          const methods = obj.holder.getMethodsToInvoke();
+          if ('sendFile' in methods) {
+            const m = methods as SendFileInvoke;
+            m.sendFile.method({ ...params.get, data: params.stream }, params.userId)
+              .then(size => {
+                done(size);
+              });
+          } else {
+            error(`method sendFile of this object type = "${OBJIOItem.getClass(obj).TYPE_ID}" not found!`);
+          }
+        })
     );
   });
 
@@ -420,7 +497,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
     const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
     try {
-      params.done(await store.createObjects({...params.post, userId: params.userId}));
+      params.done(await store.createObjects({ ...params.post, userId: params.userId }));
     } catch (err) {
       params.error(err);
     }
@@ -430,7 +507,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     params.user.pushRequestStat('write');
 
     const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
-    const res = await store.writeObjects({...params.post, userId: params.userId});
+    const res = await store.writeObjects({ ...params.post, userId: params.userId });
 
     const removed = res.removed;
     if (removed.length) {
@@ -440,32 +517,32 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     params.done(res);
   });
 
-  srv.addJsonHandler<PrjData, {id: string}>('read', 'read-object', async (params) => {
+  srv.addJsonHandler<PrjData, { id: string }>('read', 'read-object', async (params) => {
     try {
       params.user.pushRequestStat('read');
 
       const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
-      params.done(await store.readObject({id: params.post.id, userId: params.userId}));
+      params.done(await store.readObject({ id: params.post.id, userId: params.userId }));
     } catch (e) {
       params.error(e.toString());
     }
   });
 
-  srv.addJsonHandler<PrjData, {id: string}>('read', 'read-objects', async (params) => {
+  srv.addJsonHandler<PrjData, { id: string }>('read', 'read-objects', async (params) => {
     try {
       params.user.pushRequestStat('read');
-  
+
       const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
-      params.done(await store.readObjects({id: params.post.id, userId: params.userId}));
+      params.done(await store.readObjects({ id: params.post.id, userId: params.userId }));
     } catch (e) {
       params.error(e.toString());
     }
   });
 
-  srv.addJsonHandler<PrjData, {id: string, method: string, args: Object}>('read', 'invoke-method', async (params) => {
+  srv.addJsonHandler<PrjData, { id: string, method: string, args: Object }>('read', 'invoke-method', async (params) => {
     try {
       params.user.pushRequestStat('invoke');
-  
+
       const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
       params.done(await store.invokeMethod({
@@ -484,27 +561,27 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     params.user.pushRequestStat('create');
 
     manager.createProject({ projectId: params.get.prj, user: params.user })
-    .then(() => {
-      params.done({});
-    })
-    .catch(e => {
-      params.error(e);
-    });
+      .then(() => {
+        params.done({});
+      })
+      .catch(e => {
+        params.error(e);
+      });
   });
 
-  srv.addJsonHandler<PrjData, {version: number}>('read', 'watcher/version', async (params, addOnClose) => {
+  srv.addJsonHandler<PrjData, { version: number }>('read', 'watcher/version', async (params, addOnClose) => {
     params.user.pushRequestStat('read');
 
     const { watcher, prj } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
     const version = watcher.getVersion();
     if (+(params.post || { version: -1 }).version != version) {
-      params.done({version});
+      params.done({ version });
     } else {
       const item = {
         user: params.user,
         version: +params.post.version,
-        handler: () => params.done({version: watcher.getVersion()})
+        handler: () => params.done({ version: watcher.getVersion() })
       };
       watcher.addHandler(item);
 
@@ -526,13 +603,28 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
 
     console.log('clean process started');
     manager.getProject({ projectId: params.get.prj, user: params.user })
-    .then(res => {
-      return res.store.clean();
-    })
-    .then(objs => {
-      params.done(objs);
-    });
+      .then(res => {
+        return res.store.clean();
+      })
+      .then(objs => {
+        params.done(objs);
+      });
   });
 
   return { store: main.store };
 }
+
+function onExit(exit: boolean) {
+  console.log('starting close');
+  serverObj.onClose()
+  .then(() => {
+    console.log('close ok');
+    exit && process.exit();
+  });
+}
+
+process.on('exit',              () => onExit(false));
+process.on('SIGINT',            () => onExit(true));
+process.on('SIGUSR1',           () => onExit(true));
+process.on('SIGUSR2',           () => onExit(true));
+process.on('uncaughtException', () => onExit(true));

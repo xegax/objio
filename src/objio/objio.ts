@@ -14,6 +14,7 @@ import {
 } from './store';
 import { Requestor } from '../common/requestor';
 import { UserObjectBase } from '../base/user-object';
+import { GetJsonArgs } from './item';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -64,10 +65,16 @@ class SavingQueue {
     const queue = this.queue;
     this.queue = [];
 
+    const getJsonArgs: GetJsonArgs = this.objio.isClient() ? {
+      diff: true, skipConst: true
+    } : {
+      diff: false, skipConst: false
+    };
+
     const arr = queue.map(item => {
       return {
         id: item.holder.getID(),
-        json: item.holder.getJSON({diff: true, skipConst: true}),
+        json: item.holder.getJSON(getJsonArgs),
         version: item.holder.getVersion()
       };
     }).filter(item => Object.keys(item.json).length != 0);

@@ -41,10 +41,10 @@ export type ReadObjectArgs = {
 
 export type InvokeMethodArgs = {
   id: string;
-  methodName: string;
+  methodName: string | 'sendFile';
   userId: string;
   user?: UserObjectBase;
-  args: Object;
+  args: Object | File;
   onProgress?(value: number): void;
 };
 

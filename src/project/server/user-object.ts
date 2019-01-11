@@ -94,9 +94,9 @@ export class UserObject extends UserObjectBase {
       this.name = args.name;
       save++;
     }
-    
-    if (args.password && args.password != this.password) {
-      this.password = args.password;
+
+    if (args.password != null && args.password != this.password) {
+      this.password = '' + args.password;
       save++;
     }
 

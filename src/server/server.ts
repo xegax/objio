@@ -1,48 +1,15 @@
 import * as http from 'http';
 import * as url from 'url';
 import {Encryptor, EmptyEncryptor} from '../common/encryptor';
-import { Transform, TransformOptions, Readable } from 'stream';
-
-class FormDataStream extends Transform {
-  private readSize: number = 0;
-  private contentSize: number = 0;
-  private fileSize: number = 0;
-
-  constructor(opts: TransformOptions & { contentSize: number }) {
-    super(opts);
-    this.readSize = 0;
-    this.contentSize = opts.contentSize;
-  }
-
-  _transform(chunk: Buffer, env, cb: () => void) {
-    if (this.readSize == 0) {
-      let n = 0;
-      let arr = new Array<string>();
-      while (arr.length <= 3) {
-        let next = chunk.indexOf('\x0D\x0A', n);
-        arr.push(chunk.slice(n, next).toString());
-        n = next + 2;
-      }
-      chunk = chunk.slice(n);
-      this.fileSize = this.contentSize - n - (arr[0].length + 6);
-      console.log('file size', this.fileSize);
-    }
-
-    this.readSize += chunk.length;
-    if (this.readSize > this.fileSize)
-      chunk = chunk.slice(0, chunk.length - (this.readSize - this.fileSize));
-
-    this.push(chunk);
-    cb();
-  }
-}
+import { Readable } from 'stream';
 
 export interface Params<GET, POST, COOKIE> {
   get: GET;
   post?: POST;
   cookie: COOKIE;
-  done(data: any);
-  error(text: string, statusCode?: number);
+  size: number;
+  done(data: Object | string): string;  // sent data
+  error(text: string, statusCode?: number): string;
 }
 
 export type Handler<GET, POST, COOKIE> = (
@@ -166,17 +133,22 @@ export class ServerImpl implements Server  {
     const writeOK = (data: string | Object) => {
       response.setHeader('Set-Cookie', cookiesToStr(cookie));
 
-      let res = typeof data == 'string' ? data : JSON.stringify(data);
+      let res = this.encrypt(typeof data == 'string' ? data : JSON.stringify(data));
       response.writeHead(200, {'Content-Type': 'application/json'});
-      response.write(this.encrypt(res));
+      response.write(res);
       response.end();
+
+      return res;
     };
 
     const writeErr = (err: string, statusCode?: number) => {
+      err = err.toString();
       statusCode = statusCode == null ? 500 : statusCode;
       response.writeHead(statusCode, {'Content-Type': 'application/json'});
-      response.write(err.toString());
+      response.write(err);
       response.end();
+
+      return err;
     };
 
     const closes = [];
@@ -190,21 +162,15 @@ export class ServerImpl implements Server  {
 
       let postData = '';
       let postJSON: any;
-      let offsData = 0;
 
-      if (holder.type == 'json')
+      if (holder.type == 'json') {
         request.on('data', (data: Buffer) => {
           postData += data.toString();
         });
-      else {
-        let stream: Readable = request;
-        if ((request.headers['content-type'] || '').startsWith('multipart/form-data')) {
-          stream = request.pipe(new FormDataStream({ contentSize: +request.headers['content-length']}));
-        }
-
+      } else {
         dataHandler({
             get: params,
-            stream,
+            stream: request,
             cookie
           },
           writeOK,
@@ -224,6 +190,7 @@ export class ServerImpl implements Server  {
 
           try {
               jsonHandler({
+                size: postData.length + request.url.length,
                 get: params,
                 post: postJSON,
                 cookie,
@@ -238,6 +205,7 @@ export class ServerImpl implements Server  {
       try {
         (holder.handler as Handler<any, any, any>)(
           {
+            size: 0,
             get: params,
             cookie,
             done: writeOK,
