@@ -11,6 +11,7 @@ export interface RequestStat {
   getFilesNum: number;
   sentBytes: number;
   recvBytes: number;
+  taskNum: number;
 }
 
 export function createEmptyRequestStat(): RequestStat {
@@ -24,7 +25,8 @@ export function createEmptyRequestStat(): RequestStat {
     invokeNum: 0,
     getFilesNum: 0,
     sentBytes: 0,
-    recvBytes: 0
+    recvBytes: 0,
+    taskNum: 0
   };
 }
 

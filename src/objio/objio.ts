@@ -141,7 +141,7 @@ export class OBJIO {
     obj.store = new OBJIOStoreBase(args.store);
     obj.factory = args.factory;
     obj.savingQueue = new SavingQueue(args.saveTime || 100, args.store, obj);
-    obj.context = {...obj.context, ...(args.context || {})};
+    obj.context = {...obj.context, ...args.context};
     obj.server = args.server == true;
     obj.getUserByIdImpl = args.getUserById;
 
@@ -183,7 +183,13 @@ export class OBJIO {
         context: () => this.context,
         getObject: id => this.loadObject(id),
         getUserById: (userId: string) => this.getUserById(userId),
-        isClient: () => this.isClient()
+        isClient: () => this.isClient(),
+        pushTask: (task: () => Promise<any>, userId?: string) => {
+          if (!this.context.taskManager)
+            return Promise.reject('TaskManager not found');
+
+          return this.context.taskManager.pushTask(task, userId);
+        }
       }
     });
     this.objectMap[objId] = obj;

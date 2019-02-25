@@ -1,6 +1,7 @@
 import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
 import { UserObjectBase, AccessType } from '../base/user-object';
+import { TaskManagerI } from '../common/task-manager';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
@@ -76,6 +77,7 @@ export interface OBJIOItemClass {
 export interface OBJIOContext {
   objectsPath: string;    // path to private data
   filesPath: string;      // path to public data
+  taskManager?: TaskManagerI;
 }
 
 export interface OBJIOItemHolderOwner {
@@ -86,6 +88,7 @@ export interface OBJIOItemHolderOwner {
   context(): OBJIOContext;
   getUserById(userId: string): Promise<UserObjectBase>;
   isClient(): boolean;
+  pushTask<T>(task: () => Promise<any>, userId: string): Promise<T>;
 }
 
 export interface InitArgs {
@@ -164,6 +167,10 @@ export class OBJIOItemHolder extends Publisher {
 
   isClient(): boolean {
     return this.owner.isClient();
+  }
+
+  pushTask<T>(task: () => Promise<any>, userId: string): Promise<T> {
+    return this.owner.pushTask<T>(task, userId);
   }
 
   setMethodsToInvoke(methods: MethodsToInvoke) {

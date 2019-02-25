@@ -16,10 +16,10 @@ export class UserObject extends UserObjectBase {
     readsNum: 0,
     createsNum: 0,
     requestsNum: 0,
-    sessionsNum: 0
+    sessionsNum: 0,
+    taskNum: 0
   };
   protected saveTimer = new Timer(() => this.holder.save());
-
   protected totalStat: SessionStat = {
     startTime: 0,
     time: 0,
@@ -28,7 +28,8 @@ export class UserObject extends UserObjectBase {
     readsNum: 0,
     createsNum: 0,
     requestsNum: 0,
-    sessionsNum: 0
+    sessionsNum: 0,
+    taskNum: 0
   };
 
   constructor(args?: UserArgs) {
@@ -115,7 +116,8 @@ export class UserObject extends UserObjectBase {
       createsNum: 0,
       invokesNum: 0,
       requestsNum: 0,
-      time: 0
+      time: 0,
+      taskNum: 0
     };
     this.totalStat.sessionsNum++;
     this.setOnline(true);
@@ -148,6 +150,12 @@ export class UserObject extends UserObjectBase {
 
     this.lastSessStat.time = Date.now() - this.lastSessStat.startTime;
     this.save(type == 'read' ? 5000 : 1);
+  }
+
+  updateTaskNumStat() {
+    this.totalStat.taskNum++;
+    this.lastSessStat.taskNum++;
+    this.save(1);
   }
 
   save(ms: number = 1) {

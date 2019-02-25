@@ -3,6 +3,7 @@ import { ServerInstanceBase, TargetUserArgs, NewUserArgs } from '../../base/serv
 import { UserObject, AccessType } from './user-object';
 import { RequestStat, createEmptyRequestStat } from '../../base/statistics';
 import { Timer } from '../../common/timer';
+import { TaskManager, TaskManagerI } from '../../common/task-manager';
 
 export interface FindUserArgs {
   login: string;
@@ -15,9 +16,10 @@ export interface Handler {
 
 let instance: ServerInstance;
 
-export class ServerInstance extends ServerInstanceBase {
+export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
   private handler: Handler = null;
   private saveTimer = new Timer(() => this.holder.save());
+  private tasks = new TaskManager();
 
   static get(): ServerInstance {
     return instance;
@@ -57,6 +59,18 @@ export class ServerInstance extends ServerInstanceBase {
         return Promise.resolve();
       }
     });
+  }
+
+  pushTask<T>(runner: () => Promise<any>, userId?: string): Promise<T> {
+    let idx = this.users.find((user: UserObject) => user.getUserId() == userId);
+    if (idx == -1)
+      return Promise.reject('User not found');
+
+    const user = this.users.get(idx) as UserObject;
+    user.updateTaskNumStat();
+    this.pushRequestStat({ taskNum: 1});
+
+    return this.tasks.pushTask(runner);
   }
 
   onClose(): Promise<void> {
@@ -162,6 +176,11 @@ export class ServerInstance extends ServerInstanceBase {
     if (stat.writeNum) {
       this.sessStat.writeNum += stat.writeNum;
       this.totalStat.writeNum += stat.writeNum;
+    }
+
+    if (stat.taskNum) {
+      this.sessStat.taskNum += stat.taskNum;
+      this.totalStat.taskNum += stat.taskNum;
     }
 
     if (!this.saveTimer.isRunning())

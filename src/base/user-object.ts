@@ -30,6 +30,7 @@ export interface SessionStat {
   readsNum: number;
   createsNum: number;
   requestsNum: number;
+  taskNum: number;
 }
 
 export abstract class UserObjectBase extends OBJIOItem {

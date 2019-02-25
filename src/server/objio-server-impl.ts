@@ -385,7 +385,8 @@ class ProjectManager {
         },
         context: {
           objectsPath: this.getObjectsPath(projectId) + '/',
-          filesPath: this.getFilePath(projectId) + '/'
+          filesPath: this.getFilePath(projectId) + '/',
+          taskManager: serverObj
         },
         saveTime: 10,
         getUserById: userId => Promise.resolve(serverObj.getUserById(userId))

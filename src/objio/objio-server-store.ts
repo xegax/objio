@@ -31,7 +31,11 @@ export class OBJIOServerStore implements OBJIOStore {
 
     ss.includeFilter = includeFilter;
     ss.factory = args.factory;
-    ss.objio = await OBJIO.create({...objioArgs, saveTime: args.saveTime || 1, server: true});
+    ss.objio = await OBJIO.create({
+      ...objioArgs,
+      saveTime: args.saveTime || 1,
+      server: true
+    });
 
     return ss;
   }
@@ -187,7 +191,7 @@ export class OBJIOServerStore implements OBJIOStore {
       if (!obj)
         return this.objio.loadObject(args.id, args.userId);
 
-      return obj; 
+      return obj;
     })
     .then(obj => {
       if (!obj)
