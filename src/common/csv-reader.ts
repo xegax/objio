@@ -1,50 +1,126 @@
-import { LineReader, Bunch, ReadArgs, LRReadResult } from './line-reader';
+import * as CSV from 'csv-parser';
+import { Writable, Transform } from 'stream';
+import { lstatSync, createReadStream } from 'fs';
 
-export interface CSVBunch extends Bunch {
-  rows: Array<Array<string>>;
+export interface Row {
+  [column: string]: string;
 }
 
-export interface CSVReadArgs extends ReadArgs {
+export interface CSVBunch {
+  progress: number;
+  rows: Array<Row>;
+  stop(): void;
+}
+
+export interface CSVReadArgs {
+  rowsPerBunch?: number;
+  file: string;
   onNextBunch(bunch: CSVBunch): void | Promise<any>;
 }
 
-export class CSVReader {
-  static parseRow(row: string): Array<string> {
-    const cols = Array<string>();
-    let from = 0;
-    let open = 0;
-    for (let n = 0; n <= row.length; n++) {
-      const chr = row[n] || ',';
-      if (chr == '"') {
-        if (row[n + 1] == '"') {
-          n++;
-          continue;
-        }
+class Progress extends Transform {
+  private fileSize: number = 0;
+  private progress: number = 0;
+  private totalRead: number = 0;
+  private onSetProgress: (p: number) => void;
 
-        open = open ? 0 : 1;
-        continue;
-      }
+  constructor(file: string, setProgress?: (p: number) => void) {
+    super();
 
-      if (open)
-        continue;
-
-      if (chr == ',') {
-        cols.push(row.substr(from, n - from));
-        from = n + 1;
-      }
-    }
-    return cols;
+    this.onSetProgress = setProgress || (() => { });
+    this.fileSize = lstatSync(file).size;
+    this.totalRead = 0;
   }
 
-  private constructor() {}
+  _transform(chunk: Buffer, env, cb: () => void) {
+    this.totalRead += chunk.length;
+    this.progress = this.totalRead / this.fileSize;
+    this.onSetProgress(this.progress);
+    this.push(chunk);
+    cb();
+  }
+}
 
-  static read(args: CSVReadArgs): Promise<LRReadResult> {
-    return LineReader.read({
-      ...args,
-      onNextBunch: res => {
-        const rows = res.lines.filter(line => line.trim().length > 0).map(line => CSVReader.parseRow(line));
-        return args.onNextBunch({...res, rows});
-      }
+class Output extends Writable {
+  private stop = false;
+  private rows = Array<Row>();
+  private rowsPerBunch: number = 100;
+  private progress: number = 0;
+
+  private onNextBunch = (args: CSVBunch): Promise<any> | void => {
+  };
+
+  private onFinish = () => void {};
+  setFinishCallback(callback: () => void) {
+    this.onFinish = callback;
+  }
+
+  constructor(args: CSVReadArgs) {
+    super({ objectMode: true });
+    this.onNextBunch = args.onNextBunch || this.onNextBunch;
+    this.rowsPerBunch = this.rowsPerBunch || args.rowsPerBunch;
+    this.rows = [];
+    this.on('finish', () => {
+      if (!this.rows.length)
+        return this.onFinish();
+
+      let p = this.onNextBunch({
+        rows: this.rows,
+        stop: this.stopImpl,
+        progress: this.progress
+      });
+
+      if (!p)
+        this.onFinish();
+      else
+        p.then(this.onFinish);
+
+    });
+  }
+
+  setProgress = (p: number) => {
+    this.progress = p;
+  }
+
+  stopImpl = () => {
+    if (this.stop)
+      return;
+
+    setTimeout(() => this.emit('finish'), 1);
+    this.stop = true;
+  }
+
+  _write(chunk: Row, env, cb: () => void) {
+    this.rows.push(chunk);
+    if (this.rows.length < this.rowsPerBunch)
+      return cb();
+
+    const rows = this.rows.splice(0, this.rowsPerBunch);
+    const args = {
+      rows,
+      stop: this.stopImpl,
+      progress: this.progress
+    };
+
+    const task = this.onNextBunch(args);
+    if (!task) {
+      !this.stop && cb();
+    } else {
+      task.then(() => !this.stop && cb());
+    }
+  }
+}
+
+export class CSVReader {
+  static read(args: CSVReadArgs): Promise<any> {
+    let out = new Output(args);
+    let strm = createReadStream(args.file);
+    strm.pipe(new Progress(args.file, out.setProgress))
+      .pipe(CSV())
+      .pipe(out);
+
+    return new Promise(resolve => {
+      out.setFinishCallback(resolve);
     });
   }
 }
