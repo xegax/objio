@@ -30,7 +30,7 @@ export type CreateObjectsArgs = {
 };
 
 export type WriteObjectsArgs = {
-  arr: Array<{ id: string, json: JSONObj, version: string }>;
+  arr: Array<{ id: string, json: JSONObj, version: string, force?: boolean }>;
   userId?: string;
 };
 
@@ -44,7 +44,7 @@ export type InvokeMethodArgs = {
   methodName: string | 'sendFile';
   userId: string;
   user?: UserObjectBase;
-  args: Object | File;
+  args: Object | { file: File, fileId?: string };
   onProgress?(value: number): void;
 };
 
@@ -203,18 +203,19 @@ export class OBJIOLocalStore implements OBJIOStore {
       jsonMap[id] = obj.json;
     });
 
+    const mapID = (id: string): string => {
+      if (this.objects[id])
+        return id;
+
+      return res[id].newId;
+    };
+
     // replace loc-id to new ids
     Object.keys(res).forEach(id => {
       const json = jsonMap[id];
       const { newId } = res[id];
       const objClass = this.factory.findItem(this.objects[newId].classId);
-      const replaceID = id => {
-        if (this.objects[id])
-          return id;
-
-        return res[id].newId;
-      };
-      objClass.getRelObjIDS(json, replaceID);
+      objClass.getRelObjIDS({ store: json, mapID });
     });
 
     return Promise.resolve(res);
@@ -291,7 +292,7 @@ export class OBJIOLocalStore implements OBJIOStore {
 
       let upd = 0;
       Object.keys(newData).forEach(key => {
-        if (currData.data[key] == newData[key])
+        if (!item.force && currData.data[key] == newData[key])
           return;
 
         if (item.version != currData.version)
@@ -335,12 +336,19 @@ export class OBJIOLocalStore implements OBJIOStore {
     if (!deep)
       return;
 
-    if (classItem.getRelObjIDS)
-      classItem.getRelObjIDS(objStore.data).forEach(id => this.readObjectResult({ ...args, id }, res, deep));
+    if (classItem.getRelObjIDS) {
+      classItem.getRelObjIDS({ store: objStore.data, skipDeferred: true })
+      .forEach(id => {
+        this.readObjectResult({ ...args, id }, res, deep);
+      });
+    }
 
     const fields = SERIALIZE(classItem, this.fieldFilter);
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')
+        return;
+
+      if (fields[name].type == 'object-deferred')
         return;
 
       const nextId: string = objStore.data[name] as string;

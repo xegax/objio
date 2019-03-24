@@ -54,7 +54,7 @@ export class OBJIORemoteStore implements OBJIOStore {
   }
 
   invokeMethod(args: InvokeMethodArgs): Promise<any> {
-    const file = args.args as File;
+    const { file, fileId } = args.args as any;
     if (args.methodName == 'sendFile') {
       if (!(file instanceof File))
         return Promise.reject('sendFile args must be instance of File');
@@ -63,6 +63,7 @@ export class OBJIORemoteStore implements OBJIOStore {
         url: this.getUrl(args.methodName),
         params: {
           id: args.id,
+          fileId,
           name: file.name,
           size: file.size,
           mime: file.type

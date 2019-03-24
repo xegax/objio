@@ -4,7 +4,7 @@ import { UserObjectBase, AccessType } from '../base/user-object';
 import { TaskManagerI } from '../common/task-manager';
 
 export type Tags = Array<string>;
-export type Type = 'string' | 'number' | 'integer' | 'json' | 'object';
+export type Type = 'string' | 'number' | 'integer' | 'json' | 'object' | 'object-deferred';
 export type Field = {
   type: Type;
   classId?: string;
@@ -51,6 +51,7 @@ interface OBJItemConstructor extends ObjectConstructor {
 
 export interface WriteToObjectArgs {
   checkConst?: boolean;   //  writeToObject to initialize
+  writeDeffered?: boolean;
   userId: string;
   fieldFilter?: FieldFilter;
   obj: OBJIOItem;
@@ -62,13 +63,19 @@ export type SaveStoreResult = { [key: string]: number | string };
 export type WriteToObjResult = Promise<any> | void;
 export type GetRelObjIDSResult = Array<string>;
 
+export interface GetRelObjIDSArgs {
+  store: Object;
+  skipDeferred?: boolean;
+  mapID?(id: string): string;
+}
+
 export interface OBJIOItemClass {
   TYPE_ID: string;
   SERIALIZE: SERIALIZER;
 
   writeToObject?(args: WriteToObjectArgs): WriteToObjResult;
   saveStore?(obj: OBJIOItem): SaveStoreResult;
-  getRelObjIDS?(store: Object, replaceID?: (id: string) => string): GetRelObjIDSResult;
+  getRelObjIDS?(args: GetRelObjIDSArgs): GetRelObjIDSResult;
   getRelObjs(obj: OBJIOItem, arr?: Array<OBJIOItem>): Array<OBJIOItem>;
   invokeMethod?(obj: OBJIOItem, args: InvokeArgs): Promise<any>;
   create?(args?: any): OBJIOItem;
@@ -81,7 +88,7 @@ export interface OBJIOContext {
 }
 
 export interface OBJIOItemHolderOwner {
-  save(obj: OBJIOItem): Promise<any>;
+  save(obj: OBJIOItem, force?: boolean): Promise<any>;
   create(obj: OBJIOItem): Promise<void>;
   getObject(id: string): Promise<OBJIOItem>;
   invoke(args: InvokeMethodArgs & {obj: OBJIOItem}): Promise<any>;
@@ -217,12 +224,12 @@ export class OBJIOItemHolder extends Publisher {
     this.eventHandler.forEach(handler => handler.onObjChange && handler.onObjChange());
   }
 
-  save(): Promise<any> {
+  save(force?: boolean): Promise<any> {
     // it is ok, after create a local copy some fields can be modified
     if (!this.owner)
       return;
 
-    return this.owner.save(this.obj);
+    return this.owner.save(this.obj, force);
   }
 
   createObject<T extends OBJIOItem>(obj: T): Promise<void> {
@@ -255,8 +262,12 @@ export class OBJIOItemHolder extends Publisher {
         return;
 
       let newValue: string;
-      if (fieldItem.type == 'object') {
-        newValue = (value as OBJIOItem).holder.getID();
+      if (fieldItem.type == 'object' || fieldItem.type == 'object-deferred') {
+        if (value instanceof OBJIOItem) {
+          newValue = (value as OBJIOItem).holder.getID();
+        } else {
+          newValue = value;
+        }
       } else if (fieldItem.type == 'json') {
         if (userCtxMap && userCtxMap[userId])
           value = userCtxMap[userId];
@@ -350,6 +361,7 @@ export class OBJIOItem {
     return this.holder.getInvokesInProgress();
   }
 
+  // restore object from store
   static writeToObject(args: WriteToObjectArgs): WriteToObjResult {
     const fields = SERIALIZE(this.getClass(), args.fieldFilter);
     const names = Object.keys(fields);
@@ -364,10 +376,15 @@ export class OBJIOItem {
         continue;
       }
 
-      if (field.type == 'object') {
+      if (field.type == 'object' || field.type == 'object-deferred') {
         // it may be new fields
         if (valueOrID == null)
           continue;
+
+        if (!args.writeDeffered && field.type == 'object-deferred') {
+          args.obj[name] = valueOrID;
+          continue;
+        }
 
         const obj = args.getObject(valueOrID);
         if (obj instanceof OBJIOItem) {
@@ -389,7 +406,7 @@ export class OBJIOItem {
     return Promise.all(promises);
   }
 
-  static getRelObjIDS(store: Object, replaceID?: (id: string) => string ): GetRelObjIDSResult {
+  static getRelObjIDS(args: GetRelObjIDSArgs ): GetRelObjIDSResult {
     const fields = this.getClass().SERIALIZE();
     const names = Object.keys(fields);
 
@@ -397,15 +414,18 @@ export class OBJIOItem {
     for (let n = 0; n < names.length; n++) {
       const name = names[n];
 
-      if (fields[ name ].type != 'object')
+      if (fields[ name ].type != 'object' && fields[ name ].type != 'object-deferred')
         continue;
 
-      const id = store[ name ];
+      if (args.skipDeferred && fields[name].type == 'object-deferred')
+        continue;
+
+      const id = args.store[ name ];
       if (id == null)
         continue;
 
-      if (replaceID)
-        store[name] = replaceID(id);
+      if (args.mapID)
+        args.store[name] = args.mapID(id);
 
       if (ids.indexOf(id) != -1)
         continue;
@@ -421,7 +441,7 @@ export class OBJIOItem {
 
     const fields = OBJIOItem.getClass(obj).SERIALIZE();
     Object.keys(fields).forEach(name => {
-      if (fields[name].type != 'object')
+      if (fields[name].type != 'object' && fields[name].type != 'object-deferred')
         return;
 
       const childObj: OBJIOItem = obj[name];

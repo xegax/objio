@@ -59,6 +59,7 @@ export class OBJIOServerStore implements OBJIOStore {
         return;
 
       const task = objClass.writeToObject({
+        writeDeffered: true,
         userId: args.userId,
         obj,
         store,
@@ -100,6 +101,7 @@ export class OBJIOServerStore implements OBJIOStore {
       const obj = objsMap[item.id];
       const objClass = OBJIOItem.getClass(obj);
       const task = objClass.writeToObject({
+        writeDeffered: true,
         checkConst: true,
         userId: args.userId,
         fieldFilter: this.includeFilter,
@@ -154,13 +156,20 @@ export class OBJIOServerStore implements OBJIOStore {
       return;
 
     const json = obj.holder.getJSON({fieldFilter: this.includeFilter, userId: args.userId});
-    if (classItem.getRelObjIDS)
-      await Promise.all(classItem.getRelObjIDS(json).map(id => this.readObjectResult({ ...args, id }, res, deep)));
+    if (classItem.getRelObjIDS) {
+      await Promise.all(
+        classItem.getRelObjIDS({ store: json, skipDeferred: true })
+        .map(id => this.readObjectResult({ ...args, id }, res, deep))
+      );
+    }
 
     const fields = SERIALIZE(classItem, this.includeFilter);
     let tasks: Array<Promise<any>> = [];
     Object.keys(fields).forEach(name => {
       if (fields[name].type != 'object')
+        return;
+
+      if (fields[name].type == 'object-deferred')
         return;
 
       const nextId = json[name] as string;

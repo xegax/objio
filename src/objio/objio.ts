@@ -29,7 +29,7 @@ export interface WatchArgs {
 }
 
 class SavingQueue {
-  private queue = Array<OBJIOItem>();
+  private queue = Array<{obj: OBJIOItem, force?: boolean}>();
   private timeToSave: number = 0;
   private store: OBJIOStore;
   private savePromise: Promise<any>;
@@ -41,9 +41,9 @@ class SavingQueue {
     this.objio = objio;
   }
 
-  addToSave(obj: OBJIOItem) {
-    if (this.queue.indexOf(obj) == -1)
-      this.queue.push(obj);
+  addToSave(obj: OBJIOItem, force?: boolean) {
+    if (!this.queue.some(item => item.obj == obj))
+      this.queue.push({ obj, force });
 
     if (this.timeToSave == 0)
       return this.saveImpl();
@@ -73,11 +73,12 @@ class SavingQueue {
 
     const arr = queue.map(item => {
       return {
-        id: item.holder.getID(),
-        json: item.holder.getJSON(getJsonArgs),
-        version: item.holder.getVersion()
+        id: item.obj.holder.getID(),
+        json: item.obj.holder.getJSON(getJsonArgs),
+        version: item.obj.holder.getVersion(),
+        force: item.force
       };
-    }).filter(item => Object.keys(item.json).length != 0);
+    }).filter(item => item.force || Object.keys(item.json).length != 0);
 
     if (arr.length == 0)
       return Promise.resolve();
@@ -87,13 +88,13 @@ class SavingQueue {
       this.store.writeObjects({ arr })
       .then(objs => {
         objs.items.forEach((obj, i: number) => {
-          queue[i].holder.updateSrvData({
-            json: queue[i].holder.getJSON(), // obj.json,
+          queue[i].obj.holder.updateSrvData({
+            json: queue[i].obj.holder.getJSON(), // obj.json,
             version: obj.version
           });
         });
 
-        this.objio.notifyOnSave(queue);
+        this.objio.notifyOnSave(queue.map(item => item.obj));
       })
     );
   }
@@ -177,7 +178,7 @@ export class OBJIO {
       id: objId,
       version,
       owner: {
-        save: obj => this.saveImpl(obj),
+        save: (obj, force?) => this.saveImpl(obj, force),
         create: obj => this.createObject(obj),
         invoke: args => this.invokeMethod(args),
         context: () => this.context,
@@ -195,8 +196,8 @@ export class OBJIO {
     this.objectMap[objId] = obj;
   }
 
-  private saveImpl = (obj: OBJIOItem) => {
-    return this.savingQueue.addToSave(obj);
+  private saveImpl = (obj: OBJIOItem, force?: boolean) => {
+    return this.savingQueue.addToSave(obj, force);
   }
 
   getUserById(userId: string): Promise<UserObjectBase> {
@@ -408,7 +409,7 @@ export class OBJIO {
   private updateObjectsImpl(versions: Array<{ id: string, version: string }>): Promise<Array<OBJIOItem>> {
     const objs = versions.filter(item => {
       const obj = this.objectMap[item.id];
-      return obj == null || obj.holder.getVersion() != item.version;
+      return obj && obj.holder.getVersion() != item.version;
     });
 
     const updateObject = (item: { id: string, version: string }) => {
@@ -427,7 +428,7 @@ export class OBJIO {
       .then(res => {
         const { classId, version, json } = res;
         const objClass = this.factory.findItem(classId);
-        const extraObjs = objClass.getRelObjIDS(json).filter(id => this.objectMap[id] == null);
+        const extraObjs = objClass.getRelObjIDS({ store: json }).filter(id => this.objectMap[id] == null);
         if (!extraObjs.length)
           return res;
 

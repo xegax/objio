@@ -4,7 +4,8 @@ import {
   SERIALIZER,
   OBJIOItemHolder,
   SaveStoreResult,
-  GetRelObjIDSResult
+  GetRelObjIDSResult,
+  GetRelObjIDSArgs
 } from './item';
 
 export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
@@ -64,10 +65,11 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
     };
   }
 
-  static getRelObjIDS(store: {arr: string}, replaceID?: (id: string) => string): GetRelObjIDSResult {
+  static getRelObjIDS(args: GetRelObjIDSArgs): GetRelObjIDSResult {
+    const store = args.store as { arr: string };
     const arr = JSON.parse(store.arr) as Array<string>;
-    if (replaceID)
-      store.arr = JSON.stringify(arr.map(id => replaceID(id)));
+    if (args.mapID)
+      store.arr = JSON.stringify(arr.map(id => args.mapID(id)));
     return arr;
   }
 
