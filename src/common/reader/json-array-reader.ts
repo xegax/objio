@@ -5,6 +5,7 @@ export interface ReadJSONArrayArgs {
   file: string;
   itemsPerBunch?: number;
   bufferSize?: number;
+  exclude?: Set<string>;
   onBunch?(args: BunchArgs): Promise<any> | 'stop' | void;
 }
 
@@ -39,7 +40,14 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
           if (stop)
             return;
 
-          bunch.push(JSON.parse(v));
+          const row = JSON.parse(v);
+          if (args.exclude) {
+            args.exclude.forEach(c => {
+              delete row[c];
+            });
+          }
+
+          bunch.push(row);
           flushBunch(readNext, false);
         }
       ),

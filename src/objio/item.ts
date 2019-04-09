@@ -189,7 +189,8 @@ export class OBJIOItemHolder extends Publisher {
   }
 
   addEventHandler(handler: Partial<OBJIOEventHandler>) {
-    this.eventHandler.push(handler);
+    if (this.eventHandler.indexOf(handler) == -1)
+      this.eventHandler.push(handler);
   }
 
   removeEventHandler(handler: Partial<OBJIOEventHandler>) {
