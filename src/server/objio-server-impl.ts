@@ -483,9 +483,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
           if ('sendFile' in methods) {
             const m = methods as SendFileInvoke;
             m.sendFile.method({ ...params.get, data: params.stream }, params.userId)
-              .then(size => {
-                done(size);
-              });
+            .then(done)
+            .catch(error);
           } else {
             error(`method sendFile of this object type = "${OBJIOItem.getClass(obj).TYPE_ID}" not found!`);
           }
