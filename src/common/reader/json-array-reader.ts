@@ -40,11 +40,15 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
           if (stop)
             return;
 
-          const row = JSON.parse(v);
-          if (args.exclude) {
-            args.exclude.forEach(c => {
-              delete row[c];
-            });
+          const raw = JSON.parse(v);
+          let row: Object;
+          if (args.exclude && args.exclude.size) {
+            for (const k of Object.keys(raw)) {
+              if (!args.exclude.has(k))
+                row[k] = raw[k];
+            }
+          } else {
+            row = raw;
           }
 
           bunch.push(row);

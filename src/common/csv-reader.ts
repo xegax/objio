@@ -13,6 +13,7 @@ export interface CSVBunch {
 }
 
 export interface CSVReadArgs {
+  exclude?: Set<string>;
   rowsPerBunch?: number;
   file: string;
   onNextBunch(bunch: CSVBunch): void | Promise<any>;
@@ -46,9 +47,10 @@ class Output extends Writable {
   private rows = Array<Row>();
   private rowsPerBunch: number = 100;
   private progress: number = 0;
+  private exclude = new Set<string>();
 
   private onNextBunch = (args: CSVBunch): Promise<any> | void => {
-  };
+  }
 
   private onFinish = () => void {};
   setFinishCallback(callback: () => void) {
@@ -57,6 +59,7 @@ class Output extends Writable {
 
   constructor(args: CSVReadArgs) {
     super({ objectMode: true });
+    this.exclude = args.exclude || this.exclude;
     this.onNextBunch = args.onNextBunch || this.onNextBunch;
     this.rowsPerBunch = this.rowsPerBunch || args.rowsPerBunch;
     this.rows = [];
@@ -91,7 +94,18 @@ class Output extends Writable {
   }
 
   _write(chunk: Row, env, cb: () => void) {
-    this.rows.push(chunk);
+    let row: Row;
+    if (!this.exclude.size) {
+      row = chunk;
+    } else {
+      row = {};
+      for (const k of Object.keys(chunk)) {
+        if (!this.exclude.has(k))
+          row[k] = chunk[k];
+      }
+    }
+
+    this.rows.push(row);
     if (this.rows.length < this.rowsPerBunch)
       return cb();
 
