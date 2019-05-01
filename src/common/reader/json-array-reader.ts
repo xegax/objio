@@ -43,6 +43,7 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
           const raw = JSON.parse(v);
           let row: Object;
           if (args.exclude && args.exclude.size) {
+            row = {};
             for (const k of Object.keys(raw)) {
               if (!args.exclude.has(k))
                 row[k] = raw[k];
