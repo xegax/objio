@@ -17,7 +17,7 @@ export class Publisher<T = string> {
 
   unsubscribe(handler: () => void, type?: T): void {
     const i = this.observers.findIndex(item => handler == item.handler && item.type == type);
-    if (i == -1)
+    if (i != -1)
       this.observers.splice(i, 1);
   }
 
