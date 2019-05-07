@@ -295,7 +295,7 @@ class ObjWatcher {
   }
 
   flushDeffer = () => {
-    console.log('flush', this.deferredHandler.length, 'handlers');
+    // console.log('flush', this.deferredHandler.length, 'handlers');
     this.deferredHandler.forEach(item => item.handler());
     this.deferredHandler = [];
   }

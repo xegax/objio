@@ -83,7 +83,7 @@ class SavingQueue {
     if (arr.length == 0)
       return Promise.resolve();
 
-    console.log('saving', queue.length, 'objects');
+    // console.log('saving', queue.length, 'objects');
     return (
       this.store.writeObjects({ arr })
       .then(objs => {
