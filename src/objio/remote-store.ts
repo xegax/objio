@@ -62,12 +62,12 @@ export class OBJIORemoteStore implements OBJIOStore {
       return this.req.getData({
         url: this.getUrl(args.methodName),
         params: {
-          id: args.id,
-          fileId,
-          other,
-          name: file.name,
-          size: file.size,
-          mime: file.type
+          id: encodeURIComponent(args.id),
+          fileId: encodeURIComponent(fileId || ''),
+          other: encodeURIComponent(other || ''),
+          name: encodeURIComponent(file.name),
+          size: encodeURIComponent('' + file.size),
+          mime: encodeURIComponent(file.type)
         },
         postData: file,
         onProgress: args.onProgress
