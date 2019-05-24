@@ -627,4 +627,6 @@ process.on('exit',              () => onExit(false));
 process.on('SIGINT',            () => onExit(true));
 process.on('SIGUSR1',           () => onExit(true));
 process.on('SIGUSR2',           () => onExit(true));
-process.on('uncaughtException', () => onExit(true));
+process.on('uncaughtException', r => {
+  console.log('exception', r);
+});
