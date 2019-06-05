@@ -373,17 +373,24 @@ export class OBJIO {
       });
     };
 
-    let res: ReadResult;
-    let resObj: T;
     return (
       this.store.readObjects({ id, userId })
       .then(objsMap => {
-        res = objsMap;
-        return loadObjectImpl(id, objsMap) as T;
-      }).then(obj => {
-        resObj = obj;
-        return Promise.all(Object.keys(res).map(id => this.objectMap[id].holder.onLoaded()));
-      }).then(() => resObj)
+        return (
+          loadObjectImpl(id, objsMap)
+          .then((obj: T) => ({ obj, objsMap }))
+        );
+      }).then((r: { obj: T, objsMap: ReadResult }) => {
+
+        // serial loading
+        let nextLoad: Promise<any> = Promise.resolve();
+        Object.keys(r.objsMap)
+        .forEach(id => {
+          nextLoad = nextLoad.then(() => this.objectMap[id].holder.onLoaded());
+        });
+
+        return nextLoad.then(() => r.obj);
+      })
       .catch(error => {
         this.errorHandler && this.errorHandler({ type: 'loadObject', error, args: { id } });
         return Promise.reject(error);
