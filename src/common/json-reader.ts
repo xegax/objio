@@ -17,7 +17,7 @@ export class JSONReader {
     row = row.trim();
     if (row.endsWith(','))
       row = row.substr(0, row.length - 1);
-    
+
     if (row.startsWith(','))
       row = row.substr(1);
 

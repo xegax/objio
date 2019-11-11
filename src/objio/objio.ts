@@ -484,7 +484,7 @@ export class OBJIO {
   }
 
   startWatch(args: WatchArgs): WatchResult {
-    const baseUrl = args.baseUrl || 'objio/watcher/';
+    const baseUrl = args.baseUrl || 'objio/watcher-';
     const timeOut = args.timeOut;
     const req = args.req;
 

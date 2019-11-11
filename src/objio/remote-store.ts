@@ -75,8 +75,9 @@ export class OBJIORemoteStore implements OBJIOStore {
     }
 
     return this.req.getJSON({
-      url: this.getUrl('invoke-method'),
-      postData: { id: args.id, method: args.methodName, args: args.args }
+      url: this.getUrl(`invoke-method/${args.methodName}`),
+      params: { obj: args.id },
+      postData: { args: args.args }
     });
   }
 

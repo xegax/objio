@@ -82,11 +82,11 @@ class StatHandler {
   addJsonHandler<GET, POST>(
     type: AccessType,
     url: string,
-    handler: Handler<PrjData, POST, Cookies>,
+    handler: Handler<GET, POST, Cookies>,
     addOnClose?: (handler: () => void) => void) {
 
     serverObj.pushRequestStat({ ...makeStatByType(type) });
-    this.srv.addJsonHandler(type, url, (params: Params<PrjData, POST, Cookies>, addOnClose) => {
+    this.srv.addJsonHandler(type, url, (params: Params<GET, POST, Cookies>, addOnClose) => {
       const args = {
         ...params,
         done: data => {
@@ -445,7 +445,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     port: args.port || 8088,
     baseUrl: args.baseUrl || '/handler/objio/'
   }));
-  let srv = new StatHandler(rsrv);
+
+  const srv = new StatHandler(rsrv);
 
   const siHandler = {
     kickUser: (user: UserObject) => {
@@ -539,17 +540,19 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     }
   });
 
-  srv.addJsonHandler<PrjData, { id: string, method: string, args: Object }>('read', 'invoke-method', async (params) => {
+  srv.addJsonHandler<PrjData & { obj: string }, { obj: string, method: string, args: Object }>('read', 'invoke-method', async (params) => {
     try {
       params.user.pushRequestStat('invoke');
 
       const { store } = await manager.getProject({ projectId: params.get.prj, user: params.user });
 
+      const urlParts = params.url.split('/').reverse();
+      const methodName = (params.post || { method: '' }).method || urlParts[0];
       params.done(await store.invokeMethod({
         userId: params.userId,
         user: params.user,
-        id: params.post.id,
-        methodName: params.post.method,
+        id: params.get.obj,
+        methodName,
         args: params.post.args
       }) || {});
     } catch (e) {
@@ -569,7 +572,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
       });
   });
 
-  srv.addJsonHandler<PrjData, { version: number }>('read', 'watcher/version', async (params, addOnClose) => {
+  srv.addJsonHandler<PrjData, { version: number }>('read', 'watcher-version', async (params, addOnClose) => {
     params.user.pushRequestStat('read');
 
     const { watcher, prj } = await manager.getProject({ projectId: params.get.prj, user: params.user });
@@ -591,7 +594,7 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
     }
   });
 
-  srv.addJsonHandler<PrjData, {}>('read', 'watcher/items', async (params) => {
+  srv.addJsonHandler<PrjData, {}>('read', 'watcher-items', async (params) => {
     params.user.pushRequestStat('read');
 
     const { watcher } = await manager.getProject({ projectId: params.get.prj, user: params.user });

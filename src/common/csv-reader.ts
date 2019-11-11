@@ -3,7 +3,7 @@ import { Writable, Transform } from 'stream';
 import { lstatSync, createReadStream } from 'fs';
 
 export interface Row {
-  [column: string]: string;
+  [column: string]: string | number;
 }
 
 export interface CSVBunch {
@@ -15,6 +15,7 @@ export interface CSVBunch {
 export interface CSVReadArgs {
   exclude?: Set<string>;
   rowsPerBunch?: number;
+  detectNumeric?: boolean;     // default is false, trying to detect number values
   file: string;
   onNextBunch(bunch: CSVBunch): void | Promise<any>;
 }
@@ -48,6 +49,7 @@ class Output extends Writable {
   private rowsPerBunch: number = 100;
   private progress: number = 0;
   private exclude = new Set<string>();
+  private detectNumeric = false;
 
   private onNextBunch = (args: CSVBunch): Promise<any> | void => {
   }
@@ -62,6 +64,9 @@ class Output extends Writable {
     this.exclude = args.exclude || this.exclude;
     this.onNextBunch = args.onNextBunch || this.onNextBunch;
     this.rowsPerBunch = this.rowsPerBunch || args.rowsPerBunch;
+    if (args.detectNumeric != null)
+      this.detectNumeric = args.detectNumeric;
+
     this.rows = [];
     this.on('finish', () => {
       if (!this.rows.length)
@@ -77,7 +82,6 @@ class Output extends Writable {
         this.onFinish();
       else
         p.then(this.onFinish);
-
     });
   }
 
@@ -102,6 +106,14 @@ class Output extends Writable {
       for (const k of Object.keys(chunk)) {
         if (!this.exclude.has(k))
           row[k] = chunk[k];
+      }
+    }
+
+    if (this.detectNumeric) {
+      for (const k of Object.keys(row)) {
+        const numv = +row[k];
+        if (!Number.isNaN(numv))
+          row[k] = numv;
       }
     }
 

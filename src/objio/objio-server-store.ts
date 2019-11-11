@@ -111,9 +111,11 @@ export class OBJIOServerStore implements OBJIOStore {
       });
       if (task instanceof Promise) {
         tasks.push(task.then(() => {
+          obj.holder.onObjChanged();
           return obj.holder.save();
         }));
       } else {
+        obj.holder.onObjChanged();
         tasks.push(obj.holder.save());
       }
     });

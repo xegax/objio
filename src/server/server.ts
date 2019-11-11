@@ -1,11 +1,12 @@
 import * as http from 'http';
-import * as url from 'url';
+import * as URL from 'url';
 import {Encryptor, EmptyEncryptor} from '../common/encryptor';
 import { Readable } from 'stream';
 
 export interface Params<GET, POST, COOKIE> {
   get: GET;
   post?: POST;
+  url: string;
   cookie: COOKIE;
   size: number;
   done(data: Object | string): string;  // sent data
@@ -42,15 +43,19 @@ export interface Server {
   addDataHandler<GET, COOKIE>(url: string, handler: DataHandler<GET, COOKIE>);
 }
 
-function parseUrl(str) {
-  let parsed = url.parse(str, true);
+function parseUrl(str: string, baseUrl?: string) {
+  let parsed = URL.parse(str, true);
   let params = {};
   Object.keys(parsed.query).forEach((key) => {
     params[key.trim()] = parsed.query[key].toString().trim();
   });
 
+  let url = parsed.pathname;
+  if (baseUrl && url.startsWith(baseUrl))
+      url = url.substr(baseUrl.length);
+
   return {
-    url: parsed.pathname,
+    url,
     params
   };
 }
@@ -111,15 +116,15 @@ export class ServerImpl implements Server  {
   }
 
   findHandler(url: string): HandlerHolder {
-    if (this.baseUrl.length)
-      if (url.substr(0, this.baseUrl.length) == this.baseUrl)
-        url = url.substr(this.baseUrl.length);
+    let handler = this.handlerMap[ this.decrypt(url) ];
+    if (!handler)
+      handler = this.handlerMap[ this.decrypt(url.split('/')[0]) ];
 
-    return this.handlerMap[this.decrypt(url)];
+    return handler;
   }
 
   handleRequest(request: http.IncomingMessage, response: http.ServerResponse) {
-    let {url, params} = parseUrl(request.url);
+    let {url, params} = parseUrl(request.url, this.baseUrl);
 
     let holder = this.findHandler(url);
     if (!holder) {
@@ -192,6 +197,7 @@ export class ServerImpl implements Server  {
               jsonHandler({
                 size: postData.length + request.url.length,
                 get: params,
+                url,
                 post: postJSON,
                 cookie,
                 done: writeOK,
@@ -208,6 +214,7 @@ export class ServerImpl implements Server  {
             size: 0,
             get: params,
             cookie,
+            url,
             done: writeOK,
             error: writeErr
           }, handler => closes.push(handler));
