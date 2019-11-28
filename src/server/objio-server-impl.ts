@@ -470,6 +470,10 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   }
   serverObj.setHandler(siHandler);
 
+  srv.addJsonHandler('read', 'check', async (params) => {
+    params.done({ ok: true });
+  });
+
   srv.addDataHandler<SendFileArgs>('write', 'sendFile', (params, done, error) => {
     params.user.pushRequestStat('write');
 
