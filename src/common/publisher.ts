@@ -1,49 +1,49 @@
 import { Timer } from './timer';
 
-export class Publisher<T = string> {
-  private observers = Array<{handler: () => void, type: T}>();
-  private delayedTypes: Set<T> = new Set();
+export class Publisher<T extends string = string> {
+  private observers = Array<{handler: (args?: Object) => void, type: T}>();
+  private delayedTypes: {[t: string]: Object} = {};
   private timer: Timer;
 
   constructor() {
     this.timer = new Timer(this.notify);
   }
 
-  subscribe(handler: () => void, type?: T): void {
+  subscribe(handler: (args?: Object) => void, type?: T): void {
     if (this.observers.find(item => handler == item.handler && item.type == type))
       return;
     this.observers.push({handler, type});
   }
 
-  unsubscribe(handler: () => void, type?: T): void {
+  unsubscribe(handler: (args?: Object) => void, type?: T): void {
     const i = this.observers.findIndex(item => handler == item.handler && item.type == type);
     if (i != -1)
       this.observers.splice(i, 1);
   }
 
-  notify = (type?: T): void => {
+  notify = (type?: T, args?: Object): void => {
     this.timer.stop();
 
-    this.observers.forEach(item => {
+    this.observers.forEach(observer => {
       try {
-        if (!item.type || item.type == type || this.delayedTypes.has(item.type))
-          item.handler();
+        if (observer.type == type || observer.type in this.delayedTypes)
+          observer.handler(args || this.delayedTypes[type]);
       } catch (e) {
         console.log(e);
       }
     });
-    this.delayedTypes.clear();
+    this.delayedTypes = {};
   }
 
-  delayedNotify(args?: {ms?: number, type?: T}): void {
-    args = args || {
-      ms: 10
-    };
+  delayedNotify(args?: {ms?: number, type?: T, args?: Object}): void {
+    args = { ms: 10, ...args };
 
-    if (this.timer.isRunning() && this.delayedTypes.has(args.type))
+    if (!this.timer.isRunning())
+      this.timer.run(args.ms);
+
+    if (!args.type)
       return;
 
-    this.delayedTypes.add(args.type);
-    this.timer.run(args.ms || 10);
+    this.delayedTypes[args.type] = {...args.args};
   }
 }

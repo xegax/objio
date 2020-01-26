@@ -15,6 +15,7 @@ import {
 import { Requestor } from '../common/requestor';
 import { UserObjectBase } from '../base/user-object';
 import { GetJsonArgs } from './item';
+import { delay } from '../common/common';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -52,7 +53,7 @@ class SavingQueue {
       return this.savePromise;
 
     return (
-      this.savePromise = Promise.delay(this.timeToSave)
+      this.savePromise = delay(this.timeToSave)
       .then(() => {
         return this.saveImpl().then(() => {
           this.savePromise = null;
@@ -92,6 +93,8 @@ class SavingQueue {
             json: queue[i].obj.holder.getJSON(), // obj.json,
             version: obj.version
           });
+          if (!this.objio.isClient())
+            queue[i].obj.holder.onObjChanged();
         });
 
         this.objio.notifyOnSave(queue.map(item => item.obj));

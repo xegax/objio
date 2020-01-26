@@ -9,3 +9,4 @@ export * from './common/requestor';
 export * from './common/common';
 export * from './objio/objio-server-store';
 export * from './server/auth-requestor';
+export * from './base/file-system';

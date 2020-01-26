@@ -8,6 +8,7 @@ import {
   WriteObjectsArgs,
   ReadResult
 } from './store';
+import { SendFileClientArgs } from '../base/file-system';
 
 export interface OBJIORemoteStoreArgs {
   root?: string;
@@ -56,6 +57,7 @@ export class OBJIORemoteStore implements OBJIOStore {
   invokeMethod(args: InvokeMethodArgs): Promise<any> {
     const { file, fileId, other } = args.args as any;
     if (args.methodName == 'sendFile') {
+      const fargs = args.args as SendFileClientArgs;
       if (!(file instanceof File))
         return Promise.reject('sendFile args must be instance of File');
 
@@ -66,7 +68,7 @@ export class OBJIORemoteStore implements OBJIOStore {
           fileId: encodeURIComponent(fileId || ''),
           other: encodeURIComponent(other || ''),
           name: encodeURIComponent(file.name),
-          size: encodeURIComponent('' + file.size),
+          size: encodeURIComponent('' + fargs.fileSize),
           mime: encodeURIComponent(file.type)
         },
         postData: file,

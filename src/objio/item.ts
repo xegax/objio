@@ -2,6 +2,7 @@ import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
 import { UserObjectBase, AccessType } from '../base/user-object';
 import { TaskManagerI } from '../common/task-manager';
+import { string } from 'prop-types';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object' | 'object-deferred';
@@ -138,9 +139,15 @@ export interface UpdateSrvDataArgs {
   version: string;
 }
 
+export interface UploadArgs {
+  userId: string;
+  key: string;
+}
+
 export interface OBJIOEventHandler {
   onLoad(): Promise<any>;
   onCreate(userId?: string): Promise<any>;
+  onUpload(args: UploadArgs): void;
   onObjChange(): void;
   onDelete(): Promise<any>;
 }
@@ -215,6 +222,10 @@ export class OBJIOItemHolder extends Publisher {
 
   onCreate(userId?: string): Promise<any> {
     return Promise.all(this.eventHandler.filter(item => item.onCreate).map(handler => handler.onCreate(userId)));
+  }
+
+  onUpload(args: UploadArgs): void {
+    this.eventHandler.filter(item => item.onUpload).map(handler => handler.onUpload(args));
   }
 
   onDelete(): Promise<any> {

@@ -2,6 +2,7 @@ import { OBJIOFactory} from './factory';
 import { cloneDeep } from 'lodash';
 import { SERIALIZE, FieldFilter } from './item';
 import { UserObjectBase } from '../base/user-object';
+import { SendFileClientArgs } from '../base/file-system';
 
 export interface JSONObj {
   [key: string]: string | number;
@@ -44,7 +45,7 @@ export type InvokeMethodArgs = {
   methodName: string | 'sendFile';
   userId: string;
   user?: UserObjectBase;
-  args: Object | { file: File, fileId?: string };
+  args: Object | { file: File, fileId?: string } | SendFileClientArgs;
   onProgress?(value: number): void;
 };
 
