@@ -2,7 +2,6 @@ import { FileSystemSimple as Base, SendFileClientArgs } from '../base/file-syste
 import { Readable } from 'stream';
 import {
   createWriteStream,
-  mkdirSync,
   lstatSync,
   existsSync
 } from 'fs';
@@ -25,16 +24,18 @@ export interface FSArgs {
   };
 }
 
+export interface FSHandler {
+  getUploadFileName(args: SendFileArgs): string;
+}
+
 export class FileSystemSimple extends Base {
+  private handler: FSHandler;
+
   constructor(args?: FSArgs) {
     super();
 
     this.holder.addEventHandler({
       onCreate: () => {
-        const path = this.getPath();
-        if (!existsSync(path))
-          mkdirSync(path);
-
         args && this.updateFiles(args.files);
         return Promise.resolve();
       }
@@ -46,6 +47,10 @@ export class FileSystemSimple extends Base {
         rights: 'write'
       }
     });
+  }
+
+  setHandler(handler: FSHandler) {
+    this.handler = handler;
   }
 
   sendFile(args: SendFileClientArgs) {
@@ -75,7 +80,8 @@ export class FileSystemSimple extends Base {
       opts.start = file.uploadSize;
     }
 
-    let ws = createWriteStream(this.getPath(key), opts);
+    const fileName = this.handler ? this.handler.getUploadFileName({...args, key}) : this.getPath(key);
+    let ws = createWriteStream(fileName, opts);
 
     this.holder.save(true);
     return new Promise<number>(resolve => {
@@ -97,7 +103,12 @@ export class FileSystemSimple extends Base {
         }
         this.holder.save();
         resolve(file.uploadSize);
-        this.holder.onUpload({ key, userId });
+        this.holder.onUpload({
+          key,
+          userId,
+          path: fileName,
+          file: {...file}
+        });
       });
     });
   }

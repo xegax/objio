@@ -11,7 +11,9 @@ export function genId(digits: number) {
 }
 
 export function delay(ms: number): Promise<void> {
-  return Promise.delay(ms) as any;
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
 }
 
 export function getExt(file: string) {

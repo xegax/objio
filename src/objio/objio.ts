@@ -53,16 +53,19 @@ class SavingQueue {
       return this.savePromise;
 
     return (
-      this.savePromise = delay(this.timeToSave)
-      .then(() => {
-        return this.saveImpl().then(() => {
+      this.savePromise = new Promise(resolve => {
+        setTimeout(() => {
+          this.saveImpl()
+          .then(resolve)
+          .catch(resolve);
+
           this.savePromise = null;
-        });
+        }, Math.max(this.timeToSave, 1));
       })
     );
   }
 
-  saveImpl(): Promise<any> {
+  saveImpl = () => {
     const queue = this.queue;
     this.queue = [];
 

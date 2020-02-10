@@ -2,7 +2,7 @@ import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
 import { UserObjectBase, AccessType } from '../base/user-object';
 import { TaskManagerI } from '../common/task-manager';
-import { string } from 'prop-types';
+import { FileDesc } from '../base/file-system';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object' | 'object-deferred';
@@ -142,6 +142,8 @@ export interface UpdateSrvDataArgs {
 export interface UploadArgs {
   userId: string;
   key: string;
+  path: string;
+  file: FileDesc;
 }
 
 export interface OBJIOEventHandler {

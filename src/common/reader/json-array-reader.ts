@@ -6,6 +6,7 @@ export interface ReadJSONArrayArgs {
   itemsPerBunch?: number;
   bufferSize?: number;
   exclude?: Set<string>;
+  calcRanges?: boolean;
   onBunch?(args: BunchArgs): Promise<any> | 'stop' | void;
 }
 
@@ -14,7 +15,7 @@ export interface ReadJSONArrayRes {
 }
 
 export interface BunchArgs {
-  items: Array<Object>;
+  items: Array<{ obj: Object, str: string; range: Array<number> }>;
   progress: number;
 }
 
@@ -23,11 +24,11 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
   const itemsPerBunch = args.itemsPerBunch || 100;
   return new Promise((resolve, reject) => {
     const stat = lstatSync(args.file);
-    const fd = openSync(args.file, 'r+');
+    const fd = openSync(args.file, 'r');
     const buf = new Buffer(args.bufferSize || 65535);
     let totalRead = 0;
     let progress = 0;
-    let bunch = Array<Object>();
+    let bunch = Array<{ obj: Object; str: string; range: Array<number> }>();
     let bunchTask: Promise<any>;
     let stop = false;
 
@@ -36,7 +37,7 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
       spaces,
       onValue(
         braces,
-        v => {
+        (v, range) => {
           if (stop)
             return;
 
@@ -52,7 +53,11 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
             row = raw;
           }
 
-          bunch.push(row);
+          bunch.push({
+            obj: row,
+            str: v,
+            range
+          });
           flushBunch(readNext, false);
         }
       ),
@@ -60,7 +65,7 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
       comma,
       tokens
     );
-    const parser = createParser(tokens);
+    const parser = createParser(tokens, args.calcRanges);
 
     const flushBunch = (next: () => void, force: boolean) => {
       if ((!force && bunch.length < itemsPerBunch) || bunchTask || bunch.length == 0)
@@ -72,7 +77,7 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
         return onFinish(true);
 
       if (!(r instanceof Promise))
-        return flushBunch(next, force);
+        r = Promise.resolve();
 
       bunchTask = r;
       bunchTask.then(res => {
@@ -86,27 +91,30 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
       });
     };
 
-    const parseNext = (buf: Buffer, size: number) => {
-      if (size != buf.length)
-        buf = buf.slice(0, size);
-
-      parser.parse(buf.toString(), totalRead);
-      if (!bunchTask)
-        readNext();
-    };
-
     const readNext = () => {
       if (stop)
         return;
 
-      read(fd, buf, 0, buf.byteLength, null, (err, bytes, buff) => {
+      const onRead = (err, bytes: number) => {
+        if (bytes && (buf[bytes - 1] & 0xE0) == 0xC0) {
+          bytes--;
+        }
+
         progress = (totalRead + bytes) / stat.size;
-        if (bytes == 0)
-          onFinish(false);
-        else
-          parseNext(buff, bytes);
+
+        const offset = totalRead;
         totalRead += bytes;
-      });
+
+        if (bytes) {
+          parser.parse(buf.toString(undefined, 0, bytes), offset);
+          if (!bunchTask)
+            readNext();
+        } else {
+          onFinish(false);
+        }
+      };
+
+      read(fd, buf, 0, buf.byteLength, totalRead, onRead);
     };
 
     const onFinish = (s: boolean) => {

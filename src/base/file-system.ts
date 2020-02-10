@@ -92,6 +92,20 @@ export class FileSystemSimple extends OBJIOItem implements IFileSystem {
     return this.getPath() + FileSystemSimple.getFileName({ objId: this.holder.getID(), key, ext });
   }
 
+  getTotalSize() {
+    let size = 0;
+    Object.keys(this.filesMap)
+    .forEach(f => {
+      size += this.filesMap[f].uploadSize;
+    });
+
+    return size;
+  }
+
+  getTotalFiles() {
+    return Object.keys(this.filesMap).length;
+  }
+
   static TYPE_ID = 'FileSystemSimple';
   static SERIALIZE: SERIALIZER = () => ({
     filesMap: { type: 'json', const: true }

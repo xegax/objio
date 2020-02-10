@@ -4,6 +4,8 @@ export interface TokenArgs {
   continue: boolean;
   v?: string;
   open?: number;
+  absOffset: number;
+  calcRanges?: boolean;
 }
 
 export interface TokenRes {
@@ -64,13 +66,18 @@ export function spaces(args: TokenArgs): TokenRes {
   return { continue: true };
 }
 
-export function onValue(token: Token, callback?: (value: string) => void ) {
+export function onValue(token: Token, callback?: (value: string, range?: Array<number>) => void ) {
   return (targs: TokenArgs) => {
     const r = token(targs);
 
     if (callback && r.from != null && r.to != null) {
-      const data = (targs.v || '') + targs.str.substr(r.from, (r.to - r.from) + 1);
-      callback(data);
+      const value = targs.str.substr(r.from, (r.to - r.from) + 1);
+      const prev = (targs.v || '');
+      const data =  prev + value;
+      callback(data, targs.calcRanges ? [
+        targs.absOffset - Buffer.byteLength(prev) + Buffer.byteLength(targs.str.substr(0, r.from)),
+        Buffer.byteLength(data)
+      ] : undefined);
     }
 
     return r;
@@ -80,18 +87,15 @@ export function onValue(token: Token, callback?: (value: string) => void ) {
 export type Token = (args: TokenArgs) => TokenRes;
 export type TokenArr = Array<Token | Array<Token>>;
 
-export function createParser(tokens: TokenArr) {
+export function createParser(tokens: TokenArr, calcRanges?: boolean) {
   let tidx = 0;
 
   let parent = tokens;
-  let ctx: TokenArgs = { str: '', pos: 0, continue: false };
-  let min = null;
-  let max = null;
-  let p2 = 0;
-
+  let ctx: TokenArgs = { str: '', pos: 0, continue: false, absOffset: 0, calcRanges };
   const parse = (str: string, offset: number) =>  {
     ctx.pos = 0;
     ctx.str = str;
+    ctx.absOffset = offset;
     while (ctx.pos < str.length) {
       let token = parent[tidx] as Token;
       if (Array.isArray(token)) {
@@ -101,7 +105,6 @@ export function createParser(tokens: TokenArr) {
       }
       const res = token(ctx);
       if (!res.continue) {
-        // conts = [];
         ctx.continue = false;
         tidx++;
       } else {
@@ -115,26 +118,6 @@ export function createParser(tokens: TokenArr) {
       if (res.to == null)
         continue;
 
-      /*if (token == braces) {
-        objects++;
-        let data = (ctx.v || '') + str.substr(res.from, (res.to - res.from) + 1);
-        if (min == null)
-          min = data.length;
-        else
-          min = Math.min(min, data.length);
-
-        if (max == null)
-          max = data.length;
-        else
-          max = Math.max(max, data.length);
-
-        let obj = JSON.parse(data);
-        let newP2 = Math.round(progress * 10)/10;
-        if (newP2 != p2) {
-          p2 = newP2;
-          console.log(newP2);
-        }
-      }*/
       ctx.pos = res.to + 1;
     }
   }
