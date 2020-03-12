@@ -24,6 +24,8 @@ export function braces(args: TokenArgs): TokenRes {
     args.v = '';
   } else {
     p = args.pos - 1;
+    if (args.open && args.v[args.v.length - 1] == '\\')
+      p++;
   }
 
   while (++p < args.str.length) {
@@ -45,6 +47,9 @@ export function braces(args: TokenArgs): TokenRes {
   }
 
   args.v += args.str.substr(args.pos);
+  /*if (args.v.startsWith('{"file":"501932.fb2"')) {
+    console.log('!!!!');
+  }*/
   return { continue: true };
 }
 

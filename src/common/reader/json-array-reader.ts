@@ -96,13 +96,28 @@ export function readJSONArray(args: ReadJSONArrayArgs): Promise<ReadJSONArrayRes
         return;
 
       const onRead = (err, bytes: number) => {
-        if (bytes && (buf[bytes - 1] & 0xE0) == 0xC0) {
-          bytes--;
+        if (bytes) {
+          let utf8oct = (
+            (buf[bytes - 1] & 0xE0) == 0xC0 ||
+            (buf[bytes - 1] & 0xF0) == 0xE0 ||
+            (buf[bytes - 1] & 0xF8) == 0xF0
+          ) ? 1 : 0;
+
+          if (utf8oct == 0) {
+            while (bytes && (buf[bytes - 1] & 0xC0) == 0x80) {
+              utf8oct++;
+              bytes--;
+            }
+          }
+
+          if (utf8oct)
+            bytes--;
         }
 
         progress = (totalRead + bytes) / stat.size;
 
         const offset = totalRead;
+
         totalRead += bytes;
 
         if (bytes) {

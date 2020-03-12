@@ -1,5 +1,5 @@
 export class Timer {
-  private timerId: number = -1;
+  private timerId: any = null;
   private repeat: boolean = false;
   private callbacks: (() => void)[] = [];
   private time: number;
@@ -13,7 +13,7 @@ export class Timer {
     this.stop();
 
     this.repeat = true;
-    this.timerId = setInterval(() => this.doRunCallbacks(), time) as any;
+    this.timerId = setInterval(() => this.doRunCallbacks(), time);
     this.time = time;
     return this;
   }
@@ -23,27 +23,27 @@ export class Timer {
 
     this.repeat = false;
     this.timerId = setTimeout(() => {
-      this.timerId = -1;
+      this.timerId = null;
       this.doRunCallbacks();
-    }, time) as any;
+    }, time);
     this.time = time;
     return this;
   }
 
   stop() {
-    if (this.timerId != -1) {
+    if (this.timerId != null) {
       if (this.repeat) {
         clearInterval(this.timerId);
       } else {
         clearTimeout(this.timerId);
       }
-      this.timerId = -1;
+      this.timerId = null;
     }
     return this;
   }
 
   isRunning() {
-    return this.timerId != -1;
+    return this.timerId != null;
   }
 
   runCallbacks() {
