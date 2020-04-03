@@ -6,14 +6,13 @@ export interface RequestArgs {
   url: string;
   params?: Object;
   postData?: Object | string;
+  headers?: Object;
   encryptor?: Encryptor;
 
   onProgress?(value: number): void;
 }
 
 export interface Requestor {
-  setCookie(cookie: Object);
-
   getData(args: RequestArgs): Promise<string>;
   getJSON<T = any>(args: RequestArgs): Promise<T>;
 }
@@ -36,21 +35,20 @@ export interface RequestorBaseArgs {
   requestor?: Requestor;
   urlBase?: string;
   params?: Object;
+  headers?: Object;
 }
 
 export class RequestorBase implements Requestor {
   private urlBase: string = '';
   private params: Object = {};
+  private headers: Object = {};
   private requestor: Requestor;
 
   constructor(params: Partial<RequestorBaseArgs>) {
     this.urlBase = params.urlBase || '';
     this.params = params.params || {};
+    this.headers = params.headers || {};
     this.requestor = params.requestor;
-  }
-
-  setCookie(value: Object) {
-    this.requestor.setCookie(value);
   }
 
   getData(args: RequestArgs): Promise<string> {
@@ -81,17 +79,17 @@ export class RequestorBase implements Requestor {
     if (args.params)
       newArgs.params = { ...newArgs.params, ...args.params };
 
+    if (this.headers)
+      newArgs.headers = { ...this.headers };
+
+    if (args.headers || this.headers)
+      newArgs.headers = { ...this.headers, ...args.headers };
+
     return newArgs;
   }
 }
 
 class RequestorImpl implements Requestor {
-  private cookie: Object = {};
-
-  setCookie(value: Object) {
-    this.cookie = {...this.cookie, ...value};
-  }
-
   getData(args: RequestArgs): Promise<string> {
     let url = makeUrl(args.url, args.params);
 
@@ -99,10 +97,7 @@ class RequestorImpl implements Requestor {
     if (postData != null && postData.constructor == Object)
       postData = JSON.stringify(postData);
 
-    const headers: Object = {};
-    if (env.isNode())
-      headers['Cookie'] = Object.keys(this.cookie).map(key => [key, this.cookie[key]].join('=')).join('; ');
-
+    const headers: Object = {...args.headers};
     if (postData) {
       return (
         axios.default.post<string>(url, postData, {
@@ -143,9 +138,9 @@ class RequestorImpl implements Requestor {
 }
 
 export function createRequestor(args?: Partial<RequestorBaseArgs>): Requestor {
-  const requestor = new RequestorImpl();
+  let requestor = new RequestorImpl();
   if (!args)
     return requestor;
 
-  return new RequestorBase({...args, requestor});
+  return new RequestorBase({ requestor, ...args });
 }

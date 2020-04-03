@@ -9,7 +9,7 @@ import {
 } from './store';
 import { OBJIO, OBJIOArgs } from './objio';
 import { OBJIOFactory } from './factory';
-import { OBJIOItem, SERIALIZE, FieldFilter } from './item';
+import { OBJIOItem, SERIALIZE, FieldFilter, MethodsToInvoke } from './item';
 import { InvokeMethodArgs } from './store';
 
 // objio client -> remote-store -> objio server -> db-store
@@ -197,27 +197,28 @@ export class OBJIOServerStore implements OBJIOStore {
   }
 
   invokeMethod(args: InvokeMethodArgs): Promise<any> {
-    return Promise.resolve(this.objio.getObject(args.id))
-    .then(obj => {
-      if (!obj)
-        return this.objio.loadObject(args.id, args.userId);
+    return (
+      Promise.resolve(this.objio.getObject(args.id))
+      .then(obj => {
+        if (!obj)
+          return this.objio.loadObject(args.id, args.userId);
 
-      return obj;
-    })
-    .then(obj => {
-      if (!obj)
-        throw new Error(`object ${args.id} not found`);
+        return obj;
+      }).then(obj => {
+        if (!obj)
+          throw new Error(`object ${args.id} not found`);
 
-      const methods = obj.holder.getMethodsToInvoke();
-      const item = methods[args.methodName];
-      /*if (args.user && !args.user.hasRight(item.rights, []))
-        throw new Error(`Access denied to invoke ${args.methodName}`);*/
+        const methods = obj.holder.getMethodsToInvoke() as MethodsToInvoke;
+        const item = methods[args.methodName];
+        if (args.user && args.user.getRights().indexOf(item.rights) == -1)
+            throw new Error(`Access denied to invoke ${args.methodName}; need access to ${item.rights}`);
 
-      if (!item)
-        throw new Error(`method ${args.methodName} not found`);
+        if (!item)
+          throw new Error(`method ${args.methodName} not found`);
 
-      return item.method(args.args, args.userId);
-    });
+        return item.method(args.args, args.userId, args.user);
+      })
+    );
   }
 
   getAllObjIDS(): Promise<Set<string>> {

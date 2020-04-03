@@ -3,29 +3,29 @@ import * as URL from 'url';
 import {Encryptor, EmptyEncryptor} from '../common/encryptor';
 import { Readable } from 'stream';
 
-export interface Params<GET, POST, COOKIE> {
+export interface Params<GET, POST, HEADERS> {
   get: GET;
   post?: POST;
   url: string;
-  cookie: COOKIE;
+  headers: HEADERS;
   size: number;
   done(data: Object | string): string;  // sent data
   error(text: string, statusCode?: number): string;
 }
 
-export type Handler<GET, POST, COOKIE> = (
-  params: Params<GET, POST, COOKIE>,
+export type Handler<GET, POST, HEADERS> = (
+  params: Params<GET, POST, HEADERS>,
   addOnClose?: (handler: () => void) => void
 ) => void;
 
-export interface DataParams<GET, COOKIE> {
+export interface DataParams<GET, HEADERS> {
   get: GET;
   stream: Readable;
-  cookie: COOKIE;
+  headers: HEADERS;
 }
 
-export type DataHandler<GET, COOKIE> = (
-  params: DataParams<GET, COOKIE>,
+export type DataHandler<GET, HEADERS> = (
+  params: DataParams<GET, HEADERS>,
   resolve: (result: any) => void,
   reject: (err: any) => void
 ) => void;
@@ -37,10 +37,10 @@ export interface HandlerHolder {
 }
 
 export interface Server {
-  addJsonHandler<GET, POST, COOKIE>( url: string,
-                                     handler: Handler<GET, POST, COOKIE>,
+  addJsonHandler<GET, POST, HEADER>( url: string,
+                                     handler: Handler<GET, POST, HEADER>,
                                     addOnClose?: (handler: () => void) => void );
-  addDataHandler<GET, COOKIE>(url: string, handler: DataHandler<GET, COOKIE>);
+  addDataHandler<GET, HEADER>(url: string, handler: DataHandler<GET, HEADER>);
 }
 
 function parseUrl(str: string, baseUrl?: string) {
@@ -58,27 +58,6 @@ function parseUrl(str: string, baseUrl?: string) {
     url,
     params
   };
-}
-
-function parseCookie(str: string): {[key: string]: string} {
-  const map = {};
-  (str || '').split(';').forEach(keyValue => {
-    let [name, value] = keyValue.split('=');
-    name = (name || '').trim();
-    if (!name)
-      return;
-
-    map[name] = unescape((value || '').trim());
-  });
-
-  return map;
-}
-
-function cookiesToStr(cookies: {[key: string]: string}): Array<string> {
-  return Object.keys(cookies).map(key => {
-    const value = escape(cookies[key]);
-    return `${key}=${value}`;
-  });
 }
 
 export interface ServerParams {
@@ -105,13 +84,13 @@ export class ServerImpl implements Server  {
     return this.encryptor.decrypt(s);
   }
 
-  addJsonHandler<GET, POST, COOKIE>( url: string,
-                                     handler: Handler<GET, POST, COOKIE>,
+  addJsonHandler<GET, POST, HEADER>( url: string,
+                                     handler: Handler<GET, POST, HEADER>,
                                      addOnClose: (handler: () => void) => void) {
     this.handlerMap[url] = {type: 'json', handler, addOnClose};
   }
 
-  addDataHandler<GET, COOKIE>(url: string, handler: DataHandler<GET, COOKIE>) {
+  addDataHandler<GET, HEADER>(url: string, handler: DataHandler<GET, HEADER>) {
     this.handlerMap[url] = {type: 'data', handler, addOnClose: () => {}};
   }
 
@@ -133,11 +112,7 @@ export class ServerImpl implements Server  {
       return response.end();
     }
 
-    let cookie = parseCookie(request.headers.cookie as string || '');
-
     const writeOK = (data: string | Object) => {
-      response.setHeader('Set-Cookie', cookiesToStr(cookie));
-
       let res = this.encrypt(typeof data == 'string' ? data : JSON.stringify(data));
       response.writeHead(200, {'Content-Type': 'application/json'});
       response.write(res);
@@ -176,7 +151,7 @@ export class ServerImpl implements Server  {
         dataHandler({
             get: params,
             stream: request,
-            cookie
+            headers: request.headers
           },
           writeOK,
           writeErr
@@ -199,7 +174,7 @@ export class ServerImpl implements Server  {
                 get: params,
                 url,
                 post: postJSON,
-                cookie,
+                headers: request.headers,
                 done: writeOK,
                 error: writeErr
               }, handler => closes.push(handler));
@@ -213,7 +188,7 @@ export class ServerImpl implements Server  {
           {
             size: 0,
             get: params,
-            cookie,
+            headers: request.headers,
             url,
             done: writeOK,
             error: writeErr

@@ -1,9 +1,10 @@
 import { SERIALIZER } from '../../objio/item';
 import { ServerInstanceBase, TargetUserArgs, NewUserArgs } from '../../base/server-instance';
-import { UserObject, AccessType } from './user-object';
+import { UserObject, AccessType, admin, guest } from './user-object';
 import { RequestStat, createEmptyRequestStat } from '../../base/statistics';
 import { Timer } from '../../common/timer';
 import { TaskManager, TaskManagerI } from '../../common/task-manager';
+import { UserObjectBase } from '../../base/user-object';
 
 export interface FindUserArgs {
   login: string;
@@ -27,7 +28,8 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
 
   static createNew(): ServerInstance {
     let srv = new ServerInstance();
-    srv.users.push(new UserObject({ login: 'admin', password: '', email: '' }));
+    srv.users.push(admin);
+    srv.users.push(guest);
     return srv;
   }
 
@@ -56,6 +58,11 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
         this.sessStat = createEmptyRequestStat();
         this.sessStat.time = Date.now();
         this.totalStat.startCount++;
+
+        const regularUsers = this.users.getArray().filter((u: UserObject) => u.getType() == 'regular') as Array<UserObjectBase>;
+        const users = this.users.getArray();
+        users.splice(0, users.length, admin, guest, ...regularUsers);
+
         return Promise.resolve();
       }
     });
@@ -104,7 +111,8 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
     let newUser = new UserObject({
       login: args.login,
       password: args.password || '',
-      email: args.email
+      email: args.email,
+      rights: ['write', 'create', 'read']
     });
     return this.holder.createObject(newUser)
     .then(() => {
@@ -124,7 +132,7 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
   }
 
   hasRight(user: UserObject, right: AccessType): boolean {
-    return true;
+    return user.getRights().indexOf(right) != -1;
   }
 
   findUser(args: FindUserArgs): UserObject {

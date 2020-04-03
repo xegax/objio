@@ -12,6 +12,7 @@ export interface UserArgs {
   login: string;
   password: string;
   email: string;
+  rights: Array<AccessType>;
 }
 
 export interface ModifyArgs {
@@ -38,6 +39,7 @@ export abstract class UserObjectBase extends OBJIOItem {
   protected login: string;
   protected email: string;
   protected online: number = 0;
+  protected rights = new Array<AccessType>();
 
   constructor(args?: UserArgs) {
     super();
@@ -45,6 +47,7 @@ export abstract class UserObjectBase extends OBJIOItem {
     if (args) {
       this.login = args.login;
       this.email = args.email;
+      this.rights = args.rights;
     }
   }
 
@@ -63,6 +66,10 @@ export abstract class UserObjectBase extends OBJIOItem {
 
   getName() {
     return this.name;
+  }
+
+  getRights() {
+    return this.rights;
   }
 
   getLogin() {
@@ -89,6 +96,7 @@ export abstract class UserObjectBase extends OBJIOItem {
     'name': { type: 'string' },
     'login': { type: 'string', const: true },
     'email': { type: 'string', const: true },
-    'online': { type: 'number', const: true }
+    'online': { type: 'number', const: true },
+    'rights': { type: 'json', const: true }
   });
 }

@@ -115,7 +115,7 @@ export interface SendFileInvoke {
 
 export interface MethodsToInvoke {
   [method: string]: {
-    method: (args: Object, userId: string) => any,
+    method: (args: Object, userId: string, user: UserObjectBase) => any,
     rights: AccessType
   };
 }

@@ -1,4 +1,4 @@
-import { Requestor, RequestArgs } from '../common/requestor';
+import { Requestor, RequestArgs } from './requestor';
 
 interface AuthCheckArgs {
   req: Requestor;
@@ -25,9 +25,5 @@ export class AuthCheckRequestor implements Requestor {
 
   getJSON(args: RequestArgs): Promise<any> {
     return this.args.req.getJSON(args).catch(this.onError);
-  }
-
-  setCookie(value: Object) {
-    this.args.req.setCookie(value);
   }
 }

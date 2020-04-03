@@ -11,7 +11,7 @@ import { OBJIOFSLocalStore } from './objio-fs-store';
 import { existsSync, mkdirSync } from 'fs';
 import { ServerInstance } from '../project/server/server-instance';
 import { OBJIOItemClass, SendFileInvoke } from '../objio/item';
-import { UserObject, AccessType } from '../project/server/user-object';
+import { UserObject, AccessType, guest } from '../project/server/user-object';
 import { Project } from '../project/server/project';
 import { makeStatByType } from '../base/statistics';
 import { Transform } from 'stream';
@@ -54,8 +54,8 @@ function msToMin(ms: number): number {
 
 let serverObj: ServerInstance;
 
-interface Cookies {
-  sessId: string;
+interface Headers {
+  'objio-sess-id': string;
 }
 
 interface Session {
@@ -82,11 +82,11 @@ class StatHandler {
   addJsonHandler<GET, POST>(
     type: AccessType,
     url: string,
-    handler: Handler<GET, POST, Cookies>,
+    handler: Handler<GET, POST, Headers>,
     addOnClose?: (handler: () => void) => void) {
 
     serverObj.pushRequestStat({ ...makeStatByType(type) });
-    this.srv.addJsonHandler(type, url, (params: Params<GET, POST, Cookies>, addOnClose) => {
+    this.srv.addJsonHandler(type, url, (params: Params<GET, POST, Headers>, addOnClose) => {
       const args = {
         ...params,
         done: data => {
@@ -113,12 +113,12 @@ class StatHandler {
   addDataHandler<GET>(
     type: AccessType,
     url: string,
-    handler: DataHandler<GET, Cookies>) {
+    handler: DataHandler<GET, Headers>) {
 
     this.srv.addDataHandler(
       type,
       url,
-      (params: DataParams<GET, Cookies>, resolve: (res: any) => void, reject: (err: any) => void) => {
+      (params: DataParams<GET, Headers>, resolve: (res: any) => void, reject: (err: any) => void) => {
         if (url == 'sendFile') {
           params.stream = params.stream.pipe(new FileRecvStat());
           handler(params, size => {
@@ -141,29 +141,49 @@ class RestrictionPolicy {
   constructor(srv: Server) {
     this.srv = srv;
 
-    srv.addJsonHandler('login', (params: Params<{}, { login: string, passwd: string }, Cookies>) => {
-      const sess = this.checkAndGetSession(params.cookie.sessId);
-      if (sess)
-        return params.done({ error: 'Already logged in' });
+    srv.addJsonHandler('open-session', (params: Params<{}, { sessId: string; login?: string, pass?: string }, Headers>) => {
+      let { sessId, login, pass } = params.post;
+      let sessUser = guest;
+      if (login) {
+        sessUser = serverObj.findUser({ login, password: pass });
+        if (!sessUser) {
+          Promise.delay(3000)
+          .then(() => {
+            params.error('Invalid user name or password');
+          });
+          return;
+        }
+      }
 
-      const user = serverObj.findUser({
-        login: params.post.login,
-        password: params.post.passwd
+      let sess = this.checkAndGetSession(sessId);
+      let newSess = false;
+      if (!sess || (login && sess.user != sessUser)) {
+        sessId = this.openSession(sessUser);
+        sess = this.sess[sessId];
+        newSess = true;
+      }
+
+      Promise.delay(newSess ? 3000 : 1)
+      .then(() => {
+        params.done({
+          sessId,
+          userName: sess.user.getName(),
+          rights: sess.user.getRights()
+        });
       });
-
-      if (!user)
-        return params.done({ error: `User "${params.post.login}" not found or password is incorrect` });
-
-      const sessId = nextVersion('');
-      params.cookie.sessId = sessId;
-      this.sess[sessId] = {
-        startTime: new Date(),
-        lastTime: new Date(),
-        user
-      };
-      user.onStartSession();
-      params.done({ error: '', sessId });
     });
+  }
+
+  openSession(user: UserObject) {
+    const sessId = nextVersion('');
+    this.sess[sessId] = {
+      startTime: new Date(),
+      lastTime: new Date(),
+      user
+    };
+    user.onStartSession();
+
+    return sessId;
   }
 
   checkAndGetSession(sessId: string): Session {
@@ -188,18 +208,18 @@ class RestrictionPolicy {
     return true;
   }
 
-  addJsonHandler<GET, POST>(accessType: AccessType,
+  addJsonHandler<GET, POST>(access: AccessType,
     url: string,
-    handler: Handler<PrjData, POST, Cookies>,
+    handler: Handler<PrjData, POST, Headers>,
     addOnClose?: (handler: () => void) => void) {
-    this.srv.addJsonHandler(url, (params: Params<PrjData, POST, Cookies>, addOnClose) => {
-      const sess = this.checkAndGetSession(params.cookie.sessId);
+    this.srv.addJsonHandler(url, (params: Params<PrjData, POST, Headers>, addOnClose) => {
+      const sess = this.checkAndGetSession(params.headers['objio-sess-id']);
       if (!sess)
         return params.error('Authorization required', 401);
 
       sess.lastTime = new Date();
-      if (!serverObj.hasRight(sess.user, accessType))
-        return params.error(`Forbidden, you do not have right to ${accessType}`, 403);
+      if (!serverObj.hasRight(sess.user, access))
+        return params.error(`Forbidden, you do not have right to ${url}`, 403);
 
       const nextParams = {
         ...params,
@@ -213,14 +233,14 @@ class RestrictionPolicy {
 
   addDataHandler<GET>(accessType: AccessType,
     url: string,
-    handler: DataHandler<GET, Cookies>) {
+    handler: DataHandler<GET, Headers>) {
     this.srv.addDataHandler(
       url,
       (
-        params: DataParams<GET, Cookies>,
+        params: DataParams<GET, Headers>,
         resolve: (res: any) => void,
         reject: (err: any) => void) => {
-        const sess = this.checkAndGetSession(params.cookie.sessId);
+        const sess = this.checkAndGetSession(params.headers['objio-sess-id']);
         if (!sess)
           return reject('Authorization required');
 
