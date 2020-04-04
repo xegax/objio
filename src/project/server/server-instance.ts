@@ -1,10 +1,9 @@
 import { SERIALIZER } from '../../objio/item';
 import { ServerInstanceBase, TargetUserArgs, NewUserArgs } from '../../base/server-instance';
-import { UserObject, AccessType, admin, guest } from './user-object';
+import { UserObject, AccessType } from './user-object';
 import { RequestStat, createEmptyRequestStat } from '../../base/statistics';
 import { Timer } from '../../common/timer';
 import { TaskManager, TaskManagerI } from '../../common/task-manager';
-import { UserObjectBase } from '../../base/user-object';
 
 export interface FindUserArgs {
   login: string;
@@ -28,8 +27,23 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
 
   static createNew(): ServerInstance {
     let srv = new ServerInstance();
-    srv.users.push(admin);
-    srv.users.push(guest);
+
+    srv.users.push(new UserObject({
+      login: 'admin',
+      email: '',
+      password: '',
+      rights: ['create', 'read', 'write'],
+      type: 'admin'
+    }));
+
+    srv.users.push(UserObject.guest = new UserObject({
+      login: 'guest',
+      email: '',
+      password: '',
+      rights: ['read'],
+      type: 'guest'
+    }));
+
     return srv;
   }
 
@@ -59,9 +73,9 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
         this.sessStat.time = Date.now();
         this.totalStat.startCount++;
 
-        const regularUsers = this.users.getArray().filter((u: UserObject) => u.getType() == 'regular') as Array<UserObjectBase>;
-        const users = this.users.getArray();
-        users.splice(0, users.length, admin, guest, ...regularUsers);
+        const users = this.users.getArray() as Array<UserObject>;
+        UserObject.guest = users.find(user => user.getType() == 'guest');
+        UserObject.admin = users.find(user => user.getType() == 'admin');
 
         return Promise.resolve();
       }
@@ -102,7 +116,7 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
 
   addUser(args: NewUserArgs) {
     if (!args.login.trim())
-      return Promise.reject('user name can not be empty');
+      return Promise.reject('User name can not be empty');
 
     const idx = this.users.find(u => u.getLogin() == args.login || u.getEmail() == args.email);
     if (idx != -1)
@@ -124,7 +138,11 @@ export class ServerInstance extends ServerInstanceBase implements TaskManagerI {
   removeUser(args: TargetUserArgs) {
     const idx = this.users.find(u => u.holder.getID() == args.id);
     if (idx == -1)
-      return Promise.reject('object not found');
+      return Promise.reject('User not found');
+
+    const usr = this.users.get(idx) as UserObject;
+    if (usr.getType() != 'regular')
+      return Promise.reject('This type of user could not be deleted');
 
     this.users.remove(idx);
     this.users.holder.save();

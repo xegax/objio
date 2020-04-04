@@ -11,7 +11,7 @@ import { OBJIOFSLocalStore } from './objio-fs-store';
 import { existsSync, mkdirSync } from 'fs';
 import { ServerInstance } from '../project/server/server-instance';
 import { OBJIOItemClass, SendFileInvoke } from '../objio/item';
-import { UserObject, AccessType, guest } from '../project/server/user-object';
+import { UserObject, AccessType } from '../project/server/user-object';
 import { Project } from '../project/server/project';
 import { makeStatByType } from '../base/statistics';
 import { Transform } from 'stream';
@@ -143,7 +143,7 @@ class RestrictionPolicy {
 
     srv.addJsonHandler('open-session', (params: Params<{}, { sessId: string; login?: string, pass?: string }, Headers>) => {
       let { sessId, login, pass } = params.post;
-      let sessUser = guest;
+      let sessUser = UserObject.guest;
       if (login) {
         sessUser = serverObj.findUser({ login, password: pass });
         if (!sessUser) {

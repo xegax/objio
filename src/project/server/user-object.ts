@@ -5,9 +5,10 @@ import { ServerInstance } from './server-instance';
 
 export { AccessType };
 
-type UserType = 'regular' | 'special';
 export class UserObject extends UserObjectBase {
-  protected type: UserType = 'regular';
+  static guest: UserObject;
+  static admin: UserObject;
+
   protected password: string;
   protected userId: string = [0, 0].map(() => Math.random().toString(32).substr(2)).join('');
   protected lastSessStat: SessionStat = {
@@ -34,15 +35,11 @@ export class UserObject extends UserObjectBase {
     taskNum: 0
   };
 
-  constructor(args?: UserArgs & { type?: UserType }) {
+  constructor(args?: UserArgs) {
     super(args);
 
-    if (args) {
-      this.login = args.login;
-      this.email = args.email;
+    if (args)
       this.password = args.password;
-      this.type = args.type || this.type;
-    }
 
     this.holder.setMethodsToInvoke({
       getLastSessionStat: {
@@ -92,7 +89,7 @@ export class UserObject extends UserObjectBase {
       });
 
       if (user)
-        return Promise.reject(`user with email ${user.getEmail()} already exists`);
+        return Promise.reject(`User with email ${user.getEmail()} already exists`);
 
       this.email = args.email;
       save++;
@@ -103,7 +100,7 @@ export class UserObject extends UserObjectBase {
       save++;
     }
 
-    if (args.password != null && args.password != this.password) {
+    if (this.type != 'guest' && args.password != null && args.password != this.password) {
       this.password = '' + args.password;
       save++;
     }
@@ -185,23 +182,6 @@ export class UserObject extends UserObjectBase {
     password:     { type: 'string', tags: [ 'sr' ] },
     userId:       { type: 'string', tags: [ 'sr' ] },
     lastSessStat: { type: 'json',   tags: [ 'sr' ] },
-    totalStat:    { type: 'json',   tags: [ 'sr' ] },
-    type:         { type: 'string', tags: [ 'sr' ] }
+    totalStat:    { type: 'json',   tags: [ 'sr' ] }
   })
 }
-
-export let admin = new UserObject({
-  login: 'admin',
-  email: '',
-  password: '',
-  rights: ['create', 'read', 'write'],
-  type: 'special'
-});
-
-export let guest = new UserObject({
-  login: 'guest',
-  email: '',
-  password: '',
-  rights: ['read'],
-  type: 'special'
-});
