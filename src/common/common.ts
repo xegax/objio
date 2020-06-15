@@ -10,7 +10,7 @@ export function genId(digits: number) {
   return id.substr(0, digits);
 }
 
-export function delay(ms: number): Promise<void> {
+export function delay<T = void>(ms: number): Promise<T> {
   return new Promise(resolve => {
     setTimeout(resolve, ms);
   });
