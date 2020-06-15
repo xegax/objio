@@ -1,12 +1,14 @@
 import { OBJIOItem, SERIALIZER } from '../objio/item';
 import { OBJIOArray } from '../objio/array';
 import { UserObjectDesc } from './user-object';
+import { TaskManagerBase } from '../common/task-manager';
 
 export { UserObjectDesc };
 
 export abstract class ProjectBase extends OBJIOItem {
   protected objects = new OBJIOArray<OBJIOItem>();
   protected name: string = 'unnamed';
+  protected taskManager = new TaskManagerBase();
 
   getObjects(): OBJIOArray<OBJIOItem> {
     return this.objects;
@@ -32,9 +34,14 @@ export abstract class ProjectBase extends OBJIOItem {
 
   abstract getCurrUserDesc(): Promise<UserObjectDesc>;
 
+  getTaskManager() {
+    return this.taskManager;
+  }
+
   static TYPE_ID = 'SpecialProjectObject';
   static SERIALIZE: SERIALIZER = () => ({
-    'objects': { type: 'object' },
-    'name':    { type: 'string' }
+    'objects':      { type: 'object' },
+    'name':         { type: 'string' },
+    'taskManager':  { type: 'object', const: true }
   })
 }

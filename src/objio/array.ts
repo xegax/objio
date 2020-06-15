@@ -28,7 +28,7 @@ export class OBJIOArray<T = OBJIOItem> extends OBJIOItem {
   }
 
   remove(n: number) {
-    this.arr.splice(n, 1);
+    return this.arr.splice(n, 1);
   }
 
   push(item: T): OBJIOItemHolder {

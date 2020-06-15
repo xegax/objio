@@ -16,6 +16,7 @@ import { Requestor } from '../common/requestor';
 import { UserObjectBase } from '../base/user-object';
 import { GetJsonArgs } from './item';
 import { delay } from '../common/common';
+import { TaskBase } from '../base/task';
 
 export interface WatchResult {
   subscribe(f: (arr: Array<OBJIOItem>) => void);
@@ -191,11 +192,15 @@ export class OBJIO {
         getObject: id => this.loadObject(id),
         getUserById: (userId: string) => this.getUserById(userId),
         isClient: () => this.isClient(),
-        pushTask: (task: () => Promise<any>, userId?: string) => {
-          if (!this.context.taskManager)
+        pushTask: (task: TaskBase, userId?: string) => {
+          if (!this.context.getTaskManager)
             return Promise.reject('TaskManager not found');
 
-          return this.context.taskManager.pushTask(task, userId);
+          const tm = this.context.getTaskManager();
+          if (!tm)
+            return Promise.reject('TaskManager not found');
+
+          return tm.pushTask(task, userId);
         }
       }
     });

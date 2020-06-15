@@ -2,6 +2,7 @@ import { ProjectBase } from '../../base/project';
 import { SERIALIZER } from '../../objio/item';
 import { ServerInstance } from './server-instance';
 import { UserObjectDesc } from '../../base/user-object';
+import { TaskManagerServer } from '../../server/task-manager';
 
 export class Project extends ProjectBase {
   constructor() {
@@ -19,6 +20,10 @@ export class Project extends ProjectBase {
         return Promise.resolve();
       }
     });
+  }
+
+  getTaskManager() {
+    return this.taskManager as TaskManagerServer;
   }
 
   getCurrUserDesc(userId?: string): Promise<UserObjectDesc> {

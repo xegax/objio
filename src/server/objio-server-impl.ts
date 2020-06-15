@@ -15,6 +15,8 @@ import { UserObject, AccessType } from '../project/server/user-object';
 import { Project } from '../project/server/project';
 import { makeStatByType } from '../base/statistics';
 import { Transform } from 'stream';
+import { TaskManagerServer } from './task-manager';
+import { OBJIOContext } from '../objio/item';
 
 const PRIVATE_PATH = 'private';
 const PUBLIC_PATH = 'public';
@@ -163,7 +165,7 @@ class RestrictionPolicy {
         newSess = true;
       }
 
-      Promise.delay(newSess ? 3000 : 1)
+      Promise.delay(!newSess || sess.user == UserObject.guest ? 1 : 3000)
       .then(() => {
         params.done({
           sessId,
@@ -394,7 +396,14 @@ class ProjectManager {
 
     const projectPath = this.getProjectPath(projectId);
     if (!existsSync(projectPath))
-      return Promise.reject(`project ${projectId} does't exists`);
+      return Promise.reject(`Project ${projectId} does't exists`);
+
+    let tm: TaskManagerServer;
+    const context: OBJIOContext = {
+      objectsPath: this.getObjectsPath(projectId) + '/',
+      filesPath: this.getFilePath(projectId) + '/',
+      getTaskManager: () => tm
+    };
 
     return (
       this.projectMap[projectId] = OBJIOServerStore.create({
@@ -403,11 +412,7 @@ class ProjectManager {
         includeFilter: (field: Field): boolean => {
           return !field.tags || !field.tags.length || field.tags.indexOf('sr') == -1;
         },
-        context: {
-          objectsPath: this.getObjectsPath(projectId) + '/',
-          filesPath: this.getFilePath(projectId) + '/',
-          taskManager: serverObj
-        },
+        context,
         saveTime: 10,
         getUserById: userId => Promise.resolve(serverObj.getUserById(userId))
       })
@@ -427,6 +432,7 @@ class ProjectManager {
         })
         .then(res => {
           const [prj, store] = res;
+          tm = prj.getTaskManager();
 
           const watcher = new ObjWatcher();
           store.getOBJIO().addObserver({
@@ -452,7 +458,8 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
   const classes: Array<OBJIOItemClass> = [
     ServerInstance,
     UserObject,
-    Project
+    Project,
+    TaskManagerServer
   ];
 
   classes.forEach(objClass => {

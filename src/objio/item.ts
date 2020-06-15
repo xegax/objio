@@ -1,8 +1,9 @@
 import { Publisher } from '../common/publisher';
 import { InvokeMethodArgs, JSONObj } from './store';
 import { UserObjectBase, AccessType } from '../base/user-object';
-import { TaskManagerI } from '../common/task-manager';
+import { ITaskManager } from '../server/task-manager';
 import { FileDesc } from '../base/file-system';
+import { TaskBase } from '../base/task';
 
 export type Tags = Array<string>;
 export type Type = 'string' | 'number' | 'integer' | 'json' | 'object' | 'object-deferred';
@@ -85,7 +86,7 @@ export interface OBJIOItemClass {
 export interface OBJIOContext {
   objectsPath: string;    // path to private data
   filesPath: string;      // path to public data
-  taskManager?: TaskManagerI;
+  getTaskManager?(): ITaskManager;
 }
 
 export interface OBJIOItemHolderOwner {
@@ -96,7 +97,7 @@ export interface OBJIOItemHolderOwner {
   context(): OBJIOContext;
   getUserById(userId: string): Promise<UserObjectBase>;
   isClient(): boolean;
-  pushTask<T>(task: () => Promise<any>, userId: string): Promise<T>;
+  pushTask<T = any>(task: TaskBase, userId: string): Promise<T>;
 }
 
 export interface InitArgs {
@@ -185,7 +186,10 @@ export class OBJIOItemHolder extends Publisher {
     return this.owner.isClient();
   }
 
-  pushTask<T>(task: () => Promise<any>, userId: string): Promise<T> {
+  pushTask<T = any>(task: TaskBase, userId: string) {
+    if (this.isClient())
+      return Promise.reject('pushTask is allowed only for server side');
+
     return this.owner.pushTask<T>(task, userId);
   }
 
