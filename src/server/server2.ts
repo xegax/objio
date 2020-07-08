@@ -1,6 +1,5 @@
 import * as http from 'http';
 import { Readable, Writable } from 'stream';
-import { delay } from '../common/common';
 import * as URL from 'url';
 
 export interface HandlerArgs {
@@ -49,7 +48,7 @@ class ServerImpl implements Server {
         strm: resp,
         write: wargs => {
           resp.writeHead(wargs.status != null ? wargs.status : 200, args.out.headers);
-          resp.write(wargs.data);
+          resp.write(wargs.data || '');
           resp.end();
         }
       }
@@ -77,9 +76,20 @@ class ServerImpl implements Server {
           });
         }
       } catch (e) {
+        args.out.write({ data: '' + e.message, status: 500 });
         console.log(e);
         break;
       }
+    }
+    if (p) {
+      p.catch(err => {
+        let data = err['data'] || err['statusText'];
+        if (typeof data != 'string')
+          data = JSON.stringify(data);
+
+        args.out.write({ data, status: 500 });
+        console.log(err);
+      })
     }
   }
 }
@@ -122,7 +132,36 @@ function parseUrl(str: string, baseUrl?: string) {
   };
 }
 
-function addJSON(srv: Server, url: (string | URLMatcher)) {
+interface CORPSArgs {
+  ACAllowOrigin: string;
+  ACAllowHeaders: string;
+}
+
+export function CORPS(srv: Server, p: CORPSArgs) {
+  srv.addHandler(args => {
+    args.out.headers['Access-Control-Allow-Origin'] = p.ACAllowOrigin;
+    args.out.headers['Access-Control-Allow-Headers'] = p.ACAllowHeaders;
+
+    if ((args.in.req.method || '').toLocaleLowerCase() == 'options') {
+      args.out.write({ data: '', status: 200 });
+      return;
+    }
+
+    return 'next';
+  });
+}
+
+function readData(post: http.IncomingMessage): Promise<string> {
+  return new Promise(resolve => {
+    let res = '';
+    post.on('data', (buf: Buffer) => {
+      res += buf.toString();
+    });
+    post.on('end', () => resolve(res));
+  });
+}
+
+export function JSONHandler(srv: Server, url: (string | URLMatcher)) {
   const match: URLMatcher = typeof url == 'string' ? matchURL(url) : url;  
   return {
     callback<TGET = any, TPOST = any>(h: (_: { get: TGET, post: TPOST }) => Object | void | Promise<any>) {
@@ -130,7 +169,6 @@ function addJSON(srv: Server, url: (string | URLMatcher)) {
         if (!match(args))
           return 'next';
 
-        const data = h({ get: args.in.params as any, post: {} as any });
         const write = (data: any) => {
           if (typeof data == 'string')
             args.out.write({ data });
@@ -138,19 +176,26 @@ function addJSON(srv: Server, url: (string | URLMatcher)) {
             args.out.write({ data: JSON.stringify(data) });
         };
 
-        if (data instanceof Promise) {
-          data.then(write);
-        } else {
-          write(data);
-        }
+        return (
+          readData(args.in.req)
+          .then(post => {
+            let postJSON = {};
+            try {
+              postJSON = JSON.parse(post);
+            } catch(err) {
+            }
+
+            return h({ get: args.in.params as any, post: postJSON as any });
+          }).then(write)
+        );
       });
     }
   };
 }
 
-
-const srv = createServer({ port: 8080, host: '127.0.0.1' });
+/*const srv = createServer({ port: 8000, host: 'localhost' });
 srv.addHandler(args => {
+  args.out.headers['Access-Control-Allow-Origin'] = '*';
   console.log(args.in.req.url);
 
   // return delay(1000).then(() => 'next') as Promise<'next'>;
@@ -158,7 +203,19 @@ srv.addHandler(args => {
   return 'next';
 });
 
-addJSON(srv, '/node/cfg')
-.callback<{ name: string, id: number }>(args => {
-  return { ...args.get, random: Math.random() };
+JSONHandler(srv, '/node/cfg').callback<{ promise: boolean; name: string, id: number }>
+(args => {
+  let t = Date.now();
+  if (args.get.promise) {
+    return delay(3000).then(() => ({
+      random: Math.random(),
+      time: Date.now() - t
+    }));
+  }
+
+  return {
+    ...args.get,
+    random: Math.random()
+  };
 });
+*/

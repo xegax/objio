@@ -22,6 +22,12 @@
     {
       "type": "node",
       "request": "launch",
+      "name": "wr",
+      "program": "${workspaceFolder}/wr/wr-server.js"
+    },
+    {
+      "type": "node",
+      "request": "launch",
       "name": "test",
       "program": "${workspaceFolder}/test.js"
     }

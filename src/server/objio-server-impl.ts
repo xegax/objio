@@ -645,22 +645,22 @@ export async function createOBJIOServer(args: ServerArgs): Promise<ServerCreateR
       });
   });
 
+  function onExit(exit: boolean) {
+    console.log('starting close');
+    serverObj.onClose()
+    .then(() => {
+      console.log('close ok');
+      exit && process.exit();
+    });
+  }
+
+  process.on('exit',              () => onExit(false));
+  process.on('SIGINT',            () => onExit(true));
+  process.on('SIGUSR1',           () => onExit(true));
+  process.on('SIGUSR2',           () => onExit(true));
+  process.on('uncaughtException', r => {
+    console.log('exception', r);
+  });
+
   return { store: main.store };
 }
-
-function onExit(exit: boolean) {
-  console.log('starting close');
-  serverObj.onClose()
-  .then(() => {
-    console.log('close ok');
-    exit && process.exit();
-  });
-}
-
-process.on('exit',              () => onExit(false));
-process.on('SIGINT',            () => onExit(true));
-process.on('SIGUSR1',           () => onExit(true));
-process.on('SIGUSR2',           () => onExit(true));
-process.on('uncaughtException', r => {
-  console.log('exception', r);
-});

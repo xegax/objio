@@ -1,4 +1,5 @@
 import { ChildProcess, fork } from 'child_process';
+import { delay } from './common';
 
 export type AnyFunc = (...args: any) => any;
 
@@ -6,6 +7,8 @@ export interface INode<T, T2> {
   watch(handler: T): INode<T, T2>;
   get<K extends keyof T2, TF extends AnyFunc = T2[K] extends AnyFunc ? T2[K] : never>(key: K, args: Parameters<TF>[0]): ReturnType<TF> extends Promise<any> ? ReturnType<TF> : Promise<ReturnType<TF>>;
   invoke<K extends keyof T2, TF extends AnyFunc = T2[K] extends AnyFunc ? T2[K] : never>(key: K, args: Parameters<TF>[0]): void;
+  exit(): void;
+  promise: Promise<void>;
 }
 
 interface IHostArgs<T> {
@@ -70,6 +73,10 @@ class CPHostImpl {
       return p;
     };
 
+    const exit = () => {
+      cp.kill();
+    };
+
     let node: INode<T1, T2> = {
       watch(h: T1) {
         const notAFunc = Object.keys(h).find(k => typeof h[k] != 'function');
@@ -79,8 +86,10 @@ class CPHostImpl {
         handlers.push(h);
         return node;
       },
+      exit,
       invoke,
-      get
+      get,
+      promise: Promise.resolve()
     };
 
     cp.on('message', (msg: IMsgHolder) => {
@@ -104,12 +113,17 @@ class CPHostImpl {
       }
     });
 
-    const onClose = () => {
-      this.nodes.delete(cp);
-    };
+    node.promise = new Promise(resolve => {
+      const onClose = () => {
+        if (this.nodes.delete(cp)) {
+          console.log('on close cp');
+          delay(10).then(resolve);
+        }
+      };
 
-    cp.on('close', onClose);
-    cp.on('disconnect', onClose);
+      cp.on('close', onClose);
+      cp.on('disconnect', onClose);
+    });
 
     return node;
   }

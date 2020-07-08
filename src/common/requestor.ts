@@ -15,6 +15,7 @@ export interface RequestArgs {
 export interface Requestor {
   getData(args: RequestArgs): Promise<string>;
   getJSON<T = any>(args: RequestArgs): Promise<T>;
+  getRaw(args: RequestArgs): Promise<axios.AxiosResponse>;
 }
 
 // return ['key1=value1', 'key2=value2', ...]
@@ -57,6 +58,10 @@ export class RequestorBase implements Requestor {
 
   getJSON<T = any>(args: RequestArgs): Promise<T> {
     return this.requestor.getJSON(this.getArgs(args));
+  }
+
+  getRaw(args: RequestArgs) {
+    return this.requestor.getRaw(this.getArgs(args));
   }
 
   private getUrl(url: string): string {
@@ -127,6 +132,11 @@ class RequestorImpl implements Requestor {
   }
 
   getJSON<T = any>(args: RequestArgs): Promise<T> {
+    args.headers = {
+      'Content-Type': 'text/plain',
+      ...args.headers
+    };
+
     return this.getData(args).then(data => {
       try {
         return JSON.parse(data);
@@ -134,6 +144,36 @@ class RequestorImpl implements Requestor {
         console.log('getJSON error', makeUrl(args.url, args.params), e);
       }
     });
+  }
+
+  getRaw(args: RequestArgs) {
+    let url = makeUrl(args.url, args.params);
+
+    let postData = args.postData;
+    if (postData != null && postData.constructor == Object)
+      postData = JSON.stringify(postData);
+
+    const headers: Object = {...args.headers};
+    if (postData) {
+      return (
+        axios.default.post<string>(url, postData, {
+          headers,
+          onUploadProgress: (evt: ProgressEvent) => {
+            args.onProgress && args.onProgress(evt.loaded / evt.total);
+          }
+        })
+        .catch(res => {
+          throw res.response;
+        })
+      );
+    }
+
+    return (
+      axios.default.get(url, { headers })
+      .catch(res => {
+        throw res.response;
+      })
+    );
   }
 }
 
